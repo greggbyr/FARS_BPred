@@ -1,0 +1,14 @@
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % gshare at 16 KB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_gshare_16KB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred 2lev -bpred:2lev 1 16384 14 1 1" >& ./results/%_gshare_16KB_frmt.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % gshare at 32 KB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_gshare_32KB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred 2lev -bpred:2lev 1 32768 15 1 1" >& ./results/%_gshare_32KB_frmt.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % gshare at 64 KB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_gshare_64KB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred 2lev -bpred:2lev 1 65536 16 1 1" >& ./results/%_gshare_64KB_frmt.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % gshare at 128 KB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_gshare_128KB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred 2lev -bpred:2lev 1 131072 17 1 1" >& ./results/%_gshare_128KB_frmt.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % gshare at 256 KB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_gshare_256KB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred 2lev -bpred:2lev 1 262144 18 1 1" >& ./results/%_gshare_256KB_frmt.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % gshare at 512 KB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_gshare_512KB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred 2lev -bpred:2lev 1 524288 19 1 1" >& ./results/%_gshare_512KB_frmt.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % gshare at 1 MB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_gshare_1MB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred 2lev -bpred:2lev 1 1048576 20 1 1" >& ./results/%_gshare_1MB_frmt.txt'
+

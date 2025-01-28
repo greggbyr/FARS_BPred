@@ -1,0 +1,14 @@
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % tscl at 16 KB"; ./Run.pl -db ./bench.db -dir ./results/%_tscl_16KB -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred tscl -bpred:tscl 2 16384 5 2 0" >& ./results/%_tscl_16KB.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % tscl at 32 KB"; ./Run.pl -db ./bench.db -dir ./results/%_tscl_32KB -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred tscl -bpred:tscl 2 32768 5 2 0" >& ./results/%_tscl_32KB.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % tscl at 64 KB"; ./Run.pl -db ./bench.db -dir ./results/%_tscl_64KB -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred tscl -bpred:tscl 2 65536 5 2 0" >& ./results/%_tscl_64KB.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % tscl at 128 KB"; ./Run.pl -db ./bench.db -dir ./results/%_tscl_128KB -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred tscl -bpred:tscl 2 131072 5 2 0" >& ./results/%_tscl_128KB.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % tscl at 256 KB"; ./Run.pl -db ./bench.db -dir ./results/%_tscl_256KB -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred tscl -bpred:tscl 2 262144 5 2 0" >& ./results/%_tscl_256KB.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % tscl at 512 KB"; ./Run.pl -db ./bench.db -dir ./results/%_tscl_512KB -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred tscl -bpred:tscl 2 524288 5 2 0" >& ./results/%_tscl_512KB.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % tscl at 1 MB"; ./Run.pl -db ./bench.db -dir ./results/%_tscl_1MB -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred tscl -bpred:tscl 2 1048576 5 2 0" >& ./results/%_tscl_1MB.txt'
+

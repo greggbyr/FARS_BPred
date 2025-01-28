@@ -1,0 +1,14 @@
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % bimod at 16 KB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_bimod_16KB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred bimod -bpred:bimod 16384 1" >& ./results/%_bimod_16KB_frmt.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % bimod at 32 KB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_bimod_32KB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred bimod -bpred:bimod 32768 1" >& ./results/%_bimod_32KB_frmt.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % bimod at 64 KB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_bimod_64KB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred bimod -bpred:bimod 65536 1" >& ./results/%_bimod_64KB_frmt.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % bimod at 128 KB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_bimod_128KB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred bimod -bpred:bimod 131072 1" >& ./results/%_bimod_128KB_frmt.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % bimod at 256 KB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_bimod_256KB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred bimod -bpred:bimod 262144 1" >& ./results/%_bimod_256KB_frmt.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % bimod at 512 KB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_bimod_512KB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred bimod -bpred:bimod 524288 1" >& ./results/%_bimod_512KB_frmt.txt'
+
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % bimod at 1 MB with FRMT"; ./Run.pl -db ./bench.db -dir ./results/%_bimod_1MB_frmt -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -bpred bimod -bpred:bimod 1048576 1" >& ./results/%_bimod_1MB_frmt.txt'
+
