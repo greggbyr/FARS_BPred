@@ -1,6 +1,6 @@
 echo "bench,bpred,size,frmt,metric,value" > compiled_results/bimod.csv
-ls results/*bimod*.txt | xargs -I % sh -c 'grep -H "bpred_.*" %' | sed -r 's|results/||g' | sed -r 's|\..*:|,|' | sed -r 's|bpred_[^\_]+\.||g' | sed -r 's|\s+#.*||g' | sed -r 's|_bimod_|,bimod,|g' | sed -r 's|\s+|,|g' | sed -r 's|[,]+|,|g' | sed -r 's|B,|B,0,|g' | sed -r 's|_frmt|,1|g' >> compiled_results/bimod.csv
-ls results/*bimod*.txt | xargs -I % sh -c 'grep -H "sim_.*" %' | sed -r 's|results/||g' | sed -r 's|\..*:|,|' | sed -r 's|bpred_[^\_]+\.||g' | sed -r 's|\s+#.*||g' | sed -r 's|_bimod_|,bimod,|g' | sed -r 's|\s+|,|g' | sed -r 's|[,]+|,|g' | sed -r 's|B,|B,0,|g' | sed -r 's|_frmt|,1|g' >> compiled_results/bimod.csv
+ls results/*bimod*.txt | xargs -I % sh -c 'grep -H "bpred_.*" %' | sed -r 's|results/||g' | sed -r 's|\..*:|,|' | sed -r 's|bpred_[^\_]+\.||g' | sed -r 's|\s+#.*||g' | sed -r 's|_bimod_|,bimod,|g' | sed -r 's|\s+|,|g' | sed -r 's|[,]+|,|g' | sed -r 's|KB,|KB,0,|g' | sed -r 's|MB,|MB,0,|g' | sed -r 's|_frmt|,1|g' >> compiled_results/bimod.csv
+ls results/*bimod*.txt | xargs -I % sh -c 'grep -H "sim_.*" %' | sed -r 's|results/||g' | sed -r 's|\..*:|,|' | sed -r 's|bpred_[^\_]+\.||g' | sed -r 's|\s+#.*||g' | sed -r 's|_bimod_|,bimod,|g' | sed -r 's|\s+|,|g' | sed -r 's|[,]+|,|g' | sed -r 's|KB,|KB,0,|g' | sed -r 's|MB,|MB,0,|g' | sed -r 's|_frmt|,1|g' >> compiled_results/bimod.csv
 cp compiled_results/bimod.csv compiled_results/bimod.csv_tmp
 grep -v "fpppp" compiled_results/bimod.csv > compiled_results/bimod.csv_tmp
 grep -v "m88ksim" compiled_results/bimod.csv_tmp > compiled_results/bimod.csv

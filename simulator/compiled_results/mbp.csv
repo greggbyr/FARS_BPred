@@ -2535,7 +2535,7 @@ gcc,mbp,128KB,1,sim_cycle,12450315
 gcc,mbp,128KB,1,sim_IPC,0.8032
 gcc,mbp,128KB,1,sim_CPI,1.2450
 gcc,mbp,128KB,1,sim_exec_BW,0.8893
-gcc,mbp,128KB,1,sim_IPB,0,4.8533
+gcc,mbp,128KB,1,sim_IPB,4.8533
 gcc,mbp,128KB,1,sim_slip,89354092
 gcc,mbp,128KB,1,avg_sim_slip,8.9354
 gcc,mbp,128KB,1,sim_invalid_addrs,0
@@ -2555,7 +2555,7 @@ gcc,mbp,128KB,0,sim_cycle,12450315
 gcc,mbp,128KB,0,sim_IPC,0.8032
 gcc,mbp,128KB,0,sim_CPI,1.2450
 gcc,mbp,128KB,0,sim_exec_BW,0.8893
-gcc,mbp,128KB,0,sim_IPB,0,4.8533
+gcc,mbp,128KB,0,sim_IPB,4.8533
 gcc,mbp,128KB,0,sim_slip,89354092
 gcc,mbp,128KB,0,avg_sim_slip,8.9354
 gcc,mbp,128KB,0,sim_invalid_addrs,0
@@ -2575,7 +2575,7 @@ gcc,mbp,16KB,1,sim_cycle,12729749
 gcc,mbp,16KB,1,sim_IPC,0.7856
 gcc,mbp,16KB,1,sim_CPI,1.2730
 gcc,mbp,16KB,1,sim_exec_BW,0.8859
-gcc,mbp,16KB,1,sim_IPB,0,4.8533
+gcc,mbp,16KB,1,sim_IPB,4.8533
 gcc,mbp,16KB,1,sim_slip,88959019
 gcc,mbp,16KB,1,avg_sim_slip,8.8959
 gcc,mbp,16KB,1,sim_invalid_addrs,0
@@ -2595,7 +2595,7 @@ gcc,mbp,16KB,0,sim_cycle,12729749
 gcc,mbp,16KB,0,sim_IPC,0.7856
 gcc,mbp,16KB,0,sim_CPI,1.2730
 gcc,mbp,16KB,0,sim_exec_BW,0.8859
-gcc,mbp,16KB,0,sim_IPB,0,4.8533
+gcc,mbp,16KB,0,sim_IPB,4.8533
 gcc,mbp,16KB,0,sim_slip,88959019
 gcc,mbp,16KB,0,avg_sim_slip,8.8959
 gcc,mbp,16KB,0,sim_invalid_addrs,0
@@ -2615,7 +2615,7 @@ gcc,mbp,1MB,1,sim_cycle,12389372
 gcc,mbp,1MB,1,sim_IPC,0.8071
 gcc,mbp,1MB,1,sim_CPI,1.2389
 gcc,mbp,1MB,1,sim_exec_BW,0.8903
-gcc,mbp,1MB,1,sim_IPB,0,4.8533
+gcc,mbp,1MB,1,sim_IPB,4.8533
 gcc,mbp,1MB,1,sim_slip,89445591
 gcc,mbp,1MB,1,avg_sim_slip,8.9446
 gcc,mbp,1MB,1,sim_invalid_addrs,0
@@ -2635,7 +2635,7 @@ gcc,mbp,1MB,0,sim_cycle,12389372
 gcc,mbp,1MB,0,sim_IPC,0.8071
 gcc,mbp,1MB,0,sim_CPI,1.2389
 gcc,mbp,1MB,0,sim_exec_BW,0.8903
-gcc,mbp,1MB,0,sim_IPB,0,4.8533
+gcc,mbp,1MB,0,sim_IPB,4.8533
 gcc,mbp,1MB,0,sim_slip,89445591
 gcc,mbp,1MB,0,avg_sim_slip,8.9446
 gcc,mbp,1MB,0,sim_invalid_addrs,0
@@ -2655,7 +2655,7 @@ gcc,mbp,256KB,1,sim_cycle,12413620
 gcc,mbp,256KB,1,sim_IPC,0.8056
 gcc,mbp,256KB,1,sim_CPI,1.2414
 gcc,mbp,256KB,1,sim_exec_BW,0.8898
-gcc,mbp,256KB,1,sim_IPB,0,4.8533
+gcc,mbp,256KB,1,sim_IPB,4.8533
 gcc,mbp,256KB,1,sim_slip,89399208
 gcc,mbp,256KB,1,avg_sim_slip,8.9399
 gcc,mbp,256KB,1,sim_invalid_addrs,0
@@ -2675,7 +2675,7 @@ gcc,mbp,256KB,0,sim_cycle,12413620
 gcc,mbp,256KB,0,sim_IPC,0.8056
 gcc,mbp,256KB,0,sim_CPI,1.2414
 gcc,mbp,256KB,0,sim_exec_BW,0.8898
-gcc,mbp,256KB,0,sim_IPB,0,4.8533
+gcc,mbp,256KB,0,sim_IPB,4.8533
 gcc,mbp,256KB,0,sim_slip,89399208
 gcc,mbp,256KB,0,avg_sim_slip,8.9399
 gcc,mbp,256KB,0,sim_invalid_addrs,0
@@ -2695,7 +2695,7 @@ gcc,mbp,32KB,1,sim_cycle,12627553
 gcc,mbp,32KB,1,sim_IPC,0.7919
 gcc,mbp,32KB,1,sim_CPI,1.2628
 gcc,mbp,32KB,1,sim_exec_BW,0.8876
-gcc,mbp,32KB,1,sim_IPB,0,4.8533
+gcc,mbp,32KB,1,sim_IPB,4.8533
 gcc,mbp,32KB,1,sim_slip,89071485
 gcc,mbp,32KB,1,avg_sim_slip,8.9071
 gcc,mbp,32KB,1,sim_invalid_addrs,0
@@ -2715,7 +2715,7 @@ gcc,mbp,32KB,0,sim_cycle,12627553
 gcc,mbp,32KB,0,sim_IPC,0.7919
 gcc,mbp,32KB,0,sim_CPI,1.2628
 gcc,mbp,32KB,0,sim_exec_BW,0.8876
-gcc,mbp,32KB,0,sim_IPB,0,4.8533
+gcc,mbp,32KB,0,sim_IPB,4.8533
 gcc,mbp,32KB,0,sim_slip,89071485
 gcc,mbp,32KB,0,avg_sim_slip,8.9071
 gcc,mbp,32KB,0,sim_invalid_addrs,0
@@ -2735,7 +2735,7 @@ gcc,mbp,512KB,1,sim_cycle,12393841
 gcc,mbp,512KB,1,sim_IPC,0.8069
 gcc,mbp,512KB,1,sim_CPI,1.2394
 gcc,mbp,512KB,1,sim_exec_BW,0.8903
-gcc,mbp,512KB,1,sim_IPB,0,4.8533
+gcc,mbp,512KB,1,sim_IPB,4.8533
 gcc,mbp,512KB,1,sim_slip,89432407
 gcc,mbp,512KB,1,avg_sim_slip,8.9432
 gcc,mbp,512KB,1,sim_invalid_addrs,0
@@ -2755,7 +2755,7 @@ gcc,mbp,512KB,0,sim_cycle,12393841
 gcc,mbp,512KB,0,sim_IPC,0.8069
 gcc,mbp,512KB,0,sim_CPI,1.2394
 gcc,mbp,512KB,0,sim_exec_BW,0.8903
-gcc,mbp,512KB,0,sim_IPB,0,4.8533
+gcc,mbp,512KB,0,sim_IPB,4.8533
 gcc,mbp,512KB,0,sim_slip,89432407
 gcc,mbp,512KB,0,avg_sim_slip,8.9432
 gcc,mbp,512KB,0,sim_invalid_addrs,0
@@ -2775,7 +2775,7 @@ gcc,mbp,64KB,1,sim_cycle,12523407
 gcc,mbp,64KB,1,sim_IPC,0.7985
 gcc,mbp,64KB,1,sim_CPI,1.2523
 gcc,mbp,64KB,1,sim_exec_BW,0.8885
-gcc,mbp,64KB,1,sim_IPB,0,4.8533
+gcc,mbp,64KB,1,sim_IPB,4.8533
 gcc,mbp,64KB,1,sim_slip,89223072
 gcc,mbp,64KB,1,avg_sim_slip,8.9223
 gcc,mbp,64KB,1,sim_invalid_addrs,0
@@ -2795,7 +2795,7 @@ gcc,mbp,64KB,0,sim_cycle,12523407
 gcc,mbp,64KB,0,sim_IPC,0.7985
 gcc,mbp,64KB,0,sim_CPI,1.2523
 gcc,mbp,64KB,0,sim_exec_BW,0.8885
-gcc,mbp,64KB,0,sim_IPB,0,4.8533
+gcc,mbp,64KB,0,sim_IPB,4.8533
 gcc,mbp,64KB,0,sim_slip,89223072
 gcc,mbp,64KB,0,avg_sim_slip,8.9223
 gcc,mbp,64KB,0,sim_invalid_addrs,0
@@ -2815,7 +2815,7 @@ go,mbp,128KB,1,sim_cycle,7231036
 go,mbp,128KB,1,sim_IPC,1.3829
 go,mbp,128KB,1,sim_CPI,0.7231
 go,mbp,128KB,1,sim_exec_BW,1.5335
-go,mbp,128KB,1,sim_IPB,0,5.5239
+go,mbp,128KB,1,sim_IPB,5.5239
 go,mbp,128KB,1,sim_slip,97632040
 go,mbp,128KB,1,avg_sim_slip,9.7632
 go,mbp,128KB,1,sim_invalid_addrs,0
@@ -2835,7 +2835,7 @@ go,mbp,128KB,0,sim_cycle,7231036
 go,mbp,128KB,0,sim_IPC,1.3829
 go,mbp,128KB,0,sim_CPI,0.7231
 go,mbp,128KB,0,sim_exec_BW,1.5335
-go,mbp,128KB,0,sim_IPB,0,5.5239
+go,mbp,128KB,0,sim_IPB,5.5239
 go,mbp,128KB,0,sim_slip,97632040
 go,mbp,128KB,0,avg_sim_slip,9.7632
 go,mbp,128KB,0,sim_invalid_addrs,0
@@ -2855,7 +2855,7 @@ go,mbp,16KB,1,sim_cycle,7437501
 go,mbp,16KB,1,sim_IPC,1.3445
 go,mbp,16KB,1,sim_CPI,0.7438
 go,mbp,16KB,1,sim_exec_BW,1.5202
-go,mbp,16KB,1,sim_IPB,0,5.5239
+go,mbp,16KB,1,sim_IPB,5.5239
 go,mbp,16KB,1,sim_slip,97370193
 go,mbp,16KB,1,avg_sim_slip,9.7370
 go,mbp,16KB,1,sim_invalid_addrs,0
@@ -2875,7 +2875,7 @@ go,mbp,16KB,0,sim_cycle,7437501
 go,mbp,16KB,0,sim_IPC,1.3445
 go,mbp,16KB,0,sim_CPI,0.7438
 go,mbp,16KB,0,sim_exec_BW,1.5202
-go,mbp,16KB,0,sim_IPB,0,5.5239
+go,mbp,16KB,0,sim_IPB,5.5239
 go,mbp,16KB,0,sim_slip,97370193
 go,mbp,16KB,0,avg_sim_slip,9.7370
 go,mbp,16KB,0,sim_invalid_addrs,0
@@ -2895,7 +2895,7 @@ go,mbp,1MB,1,sim_cycle,7218359
 go,mbp,1MB,1,sim_IPC,1.3854
 go,mbp,1MB,1,sim_CPI,0.7218
 go,mbp,1MB,1,sim_exec_BW,1.5348
-go,mbp,1MB,1,sim_IPB,0,5.5239
+go,mbp,1MB,1,sim_IPB,5.5239
 go,mbp,1MB,1,sim_slip,97637920
 go,mbp,1MB,1,avg_sim_slip,9.7638
 go,mbp,1MB,1,sim_invalid_addrs,0
@@ -2915,7 +2915,7 @@ go,mbp,1MB,0,sim_cycle,7218359
 go,mbp,1MB,0,sim_IPC,1.3854
 go,mbp,1MB,0,sim_CPI,0.7218
 go,mbp,1MB,0,sim_exec_BW,1.5348
-go,mbp,1MB,0,sim_IPB,0,5.5239
+go,mbp,1MB,0,sim_IPB,5.5239
 go,mbp,1MB,0,sim_slip,97637920
 go,mbp,1MB,0,avg_sim_slip,9.7638
 go,mbp,1MB,0,sim_invalid_addrs,0
@@ -2935,7 +2935,7 @@ go,mbp,256KB,1,sim_cycle,7221760
 go,mbp,256KB,1,sim_IPC,1.3847
 go,mbp,256KB,1,sim_CPI,0.7222
 go,mbp,256KB,1,sim_exec_BW,1.5340
-go,mbp,256KB,1,sim_IPB,0,5.5239
+go,mbp,256KB,1,sim_IPB,5.5239
 go,mbp,256KB,1,sim_slip,97649808
 go,mbp,256KB,1,avg_sim_slip,9.7650
 go,mbp,256KB,1,sim_invalid_addrs,0
@@ -2955,7 +2955,7 @@ go,mbp,256KB,0,sim_cycle,7221760
 go,mbp,256KB,0,sim_IPC,1.3847
 go,mbp,256KB,0,sim_CPI,0.7222
 go,mbp,256KB,0,sim_exec_BW,1.5340
-go,mbp,256KB,0,sim_IPB,0,5.5239
+go,mbp,256KB,0,sim_IPB,5.5239
 go,mbp,256KB,0,sim_slip,97649808
 go,mbp,256KB,0,avg_sim_slip,9.7650
 go,mbp,256KB,0,sim_invalid_addrs,0
@@ -2975,7 +2975,7 @@ go,mbp,32KB,1,sim_cycle,7343040
 go,mbp,32KB,1,sim_IPC,1.3618
 go,mbp,32KB,1,sim_CPI,0.7343
 go,mbp,32KB,1,sim_exec_BW,1.5261
-go,mbp,32KB,1,sim_IPB,0,5.5239
+go,mbp,32KB,1,sim_IPB,5.5239
 go,mbp,32KB,1,sim_slip,97479881
 go,mbp,32KB,1,avg_sim_slip,9.7480
 go,mbp,32KB,1,sim_invalid_addrs,0
@@ -2995,7 +2995,7 @@ go,mbp,32KB,0,sim_cycle,7343040
 go,mbp,32KB,0,sim_IPC,1.3618
 go,mbp,32KB,0,sim_CPI,0.7343
 go,mbp,32KB,0,sim_exec_BW,1.5261
-go,mbp,32KB,0,sim_IPB,0,5.5239
+go,mbp,32KB,0,sim_IPB,5.5239
 go,mbp,32KB,0,sim_slip,97479881
 go,mbp,32KB,0,avg_sim_slip,9.7480
 go,mbp,32KB,0,sim_invalid_addrs,0
@@ -3015,7 +3015,7 @@ go,mbp,512KB,1,sim_cycle,7212536
 go,mbp,512KB,1,sim_IPC,1.3865
 go,mbp,512KB,1,sim_CPI,0.7213
 go,mbp,512KB,1,sim_exec_BW,1.5348
-go,mbp,512KB,1,sim_IPB,0,5.5239
+go,mbp,512KB,1,sim_IPB,5.5239
 go,mbp,512KB,1,sim_slip,97641951
 go,mbp,512KB,1,avg_sim_slip,9.7642
 go,mbp,512KB,1,sim_invalid_addrs,0
@@ -3035,7 +3035,7 @@ go,mbp,512KB,0,sim_cycle,7212536
 go,mbp,512KB,0,sim_IPC,1.3865
 go,mbp,512KB,0,sim_CPI,0.7213
 go,mbp,512KB,0,sim_exec_BW,1.5348
-go,mbp,512KB,0,sim_IPB,0,5.5239
+go,mbp,512KB,0,sim_IPB,5.5239
 go,mbp,512KB,0,sim_slip,97641951
 go,mbp,512KB,0,avg_sim_slip,9.7642
 go,mbp,512KB,0,sim_invalid_addrs,0
@@ -3055,7 +3055,7 @@ go,mbp,64KB,1,sim_cycle,7275494
 go,mbp,64KB,1,sim_IPC,1.3745
 go,mbp,64KB,1,sim_CPI,0.7275
 go,mbp,64KB,1,sim_exec_BW,1.5308
-go,mbp,64KB,1,sim_IPB,0,5.5239
+go,mbp,64KB,1,sim_IPB,5.5239
 go,mbp,64KB,1,sim_slip,97550477
 go,mbp,64KB,1,avg_sim_slip,9.7550
 go,mbp,64KB,1,sim_invalid_addrs,0
@@ -3075,7 +3075,7 @@ go,mbp,64KB,0,sim_cycle,7275494
 go,mbp,64KB,0,sim_IPC,1.3745
 go,mbp,64KB,0,sim_CPI,0.7275
 go,mbp,64KB,0,sim_exec_BW,1.5308
-go,mbp,64KB,0,sim_IPB,0,5.5239
+go,mbp,64KB,0,sim_IPB,5.5239
 go,mbp,64KB,0,sim_slip,97550477
 go,mbp,64KB,0,avg_sim_slip,9.7550
 go,mbp,64KB,0,sim_invalid_addrs,0
@@ -3095,7 +3095,7 @@ ijpeg,mbp,128KB,1,sim_cycle,3930798
 ijpeg,mbp,128KB,1,sim_IPC,2.5440
 ijpeg,mbp,128KB,1,sim_CPI,0.3931
 ijpeg,mbp,128KB,1,sim_exec_BW,2.5446
-ijpeg,mbp,128KB,1,sim_IPB,0,4.3792
+ijpeg,mbp,128KB,1,sim_IPB,4.3792
 ijpeg,mbp,128KB,1,sim_slip,96637391
 ijpeg,mbp,128KB,1,avg_sim_slip,9.6637
 ijpeg,mbp,128KB,1,sim_invalid_addrs,0
@@ -3115,7 +3115,7 @@ ijpeg,mbp,128KB,0,sim_cycle,3930798
 ijpeg,mbp,128KB,0,sim_IPC,2.5440
 ijpeg,mbp,128KB,0,sim_CPI,0.3931
 ijpeg,mbp,128KB,0,sim_exec_BW,2.5446
-ijpeg,mbp,128KB,0,sim_IPB,0,4.3792
+ijpeg,mbp,128KB,0,sim_IPB,4.3792
 ijpeg,mbp,128KB,0,sim_slip,96637391
 ijpeg,mbp,128KB,0,avg_sim_slip,9.6637
 ijpeg,mbp,128KB,0,sim_invalid_addrs,0
@@ -3135,7 +3135,7 @@ ijpeg,mbp,16KB,1,sim_cycle,3930686
 ijpeg,mbp,16KB,1,sim_IPC,2.5441
 ijpeg,mbp,16KB,1,sim_CPI,0.3931
 ijpeg,mbp,16KB,1,sim_exec_BW,2.5447
-ijpeg,mbp,16KB,1,sim_IPB,0,4.3792
+ijpeg,mbp,16KB,1,sim_IPB,4.3792
 ijpeg,mbp,16KB,1,sim_slip,96637250
 ijpeg,mbp,16KB,1,avg_sim_slip,9.6637
 ijpeg,mbp,16KB,1,sim_invalid_addrs,0
@@ -3155,7 +3155,7 @@ ijpeg,mbp,16KB,0,sim_cycle,3930686
 ijpeg,mbp,16KB,0,sim_IPC,2.5441
 ijpeg,mbp,16KB,0,sim_CPI,0.3931
 ijpeg,mbp,16KB,0,sim_exec_BW,2.5447
-ijpeg,mbp,16KB,0,sim_IPB,0,4.3792
+ijpeg,mbp,16KB,0,sim_IPB,4.3792
 ijpeg,mbp,16KB,0,sim_slip,96637250
 ijpeg,mbp,16KB,0,avg_sim_slip,9.6637
 ijpeg,mbp,16KB,0,sim_invalid_addrs,0
@@ -3175,7 +3175,7 @@ ijpeg,mbp,1MB,1,sim_cycle,3930854
 ijpeg,mbp,1MB,1,sim_IPC,2.5440
 ijpeg,mbp,1MB,1,sim_CPI,0.3931
 ijpeg,mbp,1MB,1,sim_exec_BW,2.5446
-ijpeg,mbp,1MB,1,sim_IPB,0,4.3792
+ijpeg,mbp,1MB,1,sim_IPB,4.3792
 ijpeg,mbp,1MB,1,sim_slip,96636261
 ijpeg,mbp,1MB,1,avg_sim_slip,9.6636
 ijpeg,mbp,1MB,1,sim_invalid_addrs,0
@@ -3195,7 +3195,7 @@ ijpeg,mbp,1MB,0,sim_cycle,3930854
 ijpeg,mbp,1MB,0,sim_IPC,2.5440
 ijpeg,mbp,1MB,0,sim_CPI,0.3931
 ijpeg,mbp,1MB,0,sim_exec_BW,2.5446
-ijpeg,mbp,1MB,0,sim_IPB,0,4.3792
+ijpeg,mbp,1MB,0,sim_IPB,4.3792
 ijpeg,mbp,1MB,0,sim_slip,96636261
 ijpeg,mbp,1MB,0,avg_sim_slip,9.6636
 ijpeg,mbp,1MB,0,sim_invalid_addrs,0
@@ -3215,7 +3215,7 @@ ijpeg,mbp,256KB,1,sim_cycle,3930821
 ijpeg,mbp,256KB,1,sim_IPC,2.5440
 ijpeg,mbp,256KB,1,sim_CPI,0.3931
 ijpeg,mbp,256KB,1,sim_exec_BW,2.5446
-ijpeg,mbp,256KB,1,sim_IPB,0,4.3792
+ijpeg,mbp,256KB,1,sim_IPB,4.3792
 ijpeg,mbp,256KB,1,sim_slip,96637033
 ijpeg,mbp,256KB,1,avg_sim_slip,9.6637
 ijpeg,mbp,256KB,1,sim_invalid_addrs,0
@@ -3235,7 +3235,7 @@ ijpeg,mbp,256KB,0,sim_cycle,3930821
 ijpeg,mbp,256KB,0,sim_IPC,2.5440
 ijpeg,mbp,256KB,0,sim_CPI,0.3931
 ijpeg,mbp,256KB,0,sim_exec_BW,2.5446
-ijpeg,mbp,256KB,0,sim_IPB,0,4.3792
+ijpeg,mbp,256KB,0,sim_IPB,4.3792
 ijpeg,mbp,256KB,0,sim_slip,96637033
 ijpeg,mbp,256KB,0,avg_sim_slip,9.6637
 ijpeg,mbp,256KB,0,sim_invalid_addrs,0
@@ -3255,7 +3255,7 @@ ijpeg,mbp,32KB,1,sim_cycle,3930753
 ijpeg,mbp,32KB,1,sim_IPC,2.5440
 ijpeg,mbp,32KB,1,sim_CPI,0.3931
 ijpeg,mbp,32KB,1,sim_exec_BW,2.5446
-ijpeg,mbp,32KB,1,sim_IPB,0,4.3792
+ijpeg,mbp,32KB,1,sim_IPB,4.3792
 ijpeg,mbp,32KB,1,sim_slip,96637874
 ijpeg,mbp,32KB,1,avg_sim_slip,9.6638
 ijpeg,mbp,32KB,1,sim_invalid_addrs,0
@@ -3275,7 +3275,7 @@ ijpeg,mbp,32KB,0,sim_cycle,3930753
 ijpeg,mbp,32KB,0,sim_IPC,2.5440
 ijpeg,mbp,32KB,0,sim_CPI,0.3931
 ijpeg,mbp,32KB,0,sim_exec_BW,2.5446
-ijpeg,mbp,32KB,0,sim_IPB,0,4.3792
+ijpeg,mbp,32KB,0,sim_IPB,4.3792
 ijpeg,mbp,32KB,0,sim_slip,96637874
 ijpeg,mbp,32KB,0,avg_sim_slip,9.6638
 ijpeg,mbp,32KB,0,sim_invalid_addrs,0
@@ -3295,7 +3295,7 @@ ijpeg,mbp,512KB,1,sim_cycle,3930857
 ijpeg,mbp,512KB,1,sim_IPC,2.5440
 ijpeg,mbp,512KB,1,sim_CPI,0.3931
 ijpeg,mbp,512KB,1,sim_exec_BW,2.5446
-ijpeg,mbp,512KB,1,sim_IPB,0,4.3792
+ijpeg,mbp,512KB,1,sim_IPB,4.3792
 ijpeg,mbp,512KB,1,sim_slip,96636639
 ijpeg,mbp,512KB,1,avg_sim_slip,9.6637
 ijpeg,mbp,512KB,1,sim_invalid_addrs,0
@@ -3315,7 +3315,7 @@ ijpeg,mbp,512KB,0,sim_cycle,3930857
 ijpeg,mbp,512KB,0,sim_IPC,2.5440
 ijpeg,mbp,512KB,0,sim_CPI,0.3931
 ijpeg,mbp,512KB,0,sim_exec_BW,2.5446
-ijpeg,mbp,512KB,0,sim_IPB,0,4.3792
+ijpeg,mbp,512KB,0,sim_IPB,4.3792
 ijpeg,mbp,512KB,0,sim_slip,96636639
 ijpeg,mbp,512KB,0,avg_sim_slip,9.6637
 ijpeg,mbp,512KB,0,sim_invalid_addrs,0
@@ -3335,7 +3335,7 @@ ijpeg,mbp,64KB,1,sim_cycle,3930746
 ijpeg,mbp,64KB,1,sim_IPC,2.5440
 ijpeg,mbp,64KB,1,sim_CPI,0.3931
 ijpeg,mbp,64KB,1,sim_exec_BW,2.5446
-ijpeg,mbp,64KB,1,sim_IPB,0,4.3792
+ijpeg,mbp,64KB,1,sim_IPB,4.3792
 ijpeg,mbp,64KB,1,sim_slip,96637492
 ijpeg,mbp,64KB,1,avg_sim_slip,9.6637
 ijpeg,mbp,64KB,1,sim_invalid_addrs,0
@@ -3355,7 +3355,7 @@ ijpeg,mbp,64KB,0,sim_cycle,3930746
 ijpeg,mbp,64KB,0,sim_IPC,2.5440
 ijpeg,mbp,64KB,0,sim_CPI,0.3931
 ijpeg,mbp,64KB,0,sim_exec_BW,2.5446
-ijpeg,mbp,64KB,0,sim_IPB,0,4.3792
+ijpeg,mbp,64KB,0,sim_IPB,4.3792
 ijpeg,mbp,64KB,0,sim_slip,96637492
 ijpeg,mbp,64KB,0,avg_sim_slip,9.6637
 ijpeg,mbp,64KB,0,sim_invalid_addrs,0
@@ -3375,7 +3375,7 @@ li,mbp,128KB,1,sim_cycle,5620570
 li,mbp,128KB,1,sim_IPC,1.7792
 li,mbp,128KB,1,sim_CPI,0.5621
 li,mbp,128KB,1,sim_exec_BW,1.9514
-li,mbp,128KB,1,sim_IPB,0,4.3528
+li,mbp,128KB,1,sim_IPB,4.3528
 li,mbp,128KB,1,sim_slip,100567816
 li,mbp,128KB,1,avg_sim_slip,10.0568
 li,mbp,128KB,1,sim_invalid_addrs,0
@@ -3395,7 +3395,7 @@ li,mbp,128KB,0,sim_cycle,5620570
 li,mbp,128KB,0,sim_IPC,1.7792
 li,mbp,128KB,0,sim_CPI,0.5621
 li,mbp,128KB,0,sim_exec_BW,1.9514
-li,mbp,128KB,0,sim_IPB,0,4.3528
+li,mbp,128KB,0,sim_IPB,4.3528
 li,mbp,128KB,0,sim_slip,100567816
 li,mbp,128KB,0,avg_sim_slip,10.0568
 li,mbp,128KB,0,sim_invalid_addrs,0
@@ -3415,7 +3415,7 @@ li,mbp,16KB,1,sim_cycle,5693284
 li,mbp,16KB,1,sim_IPC,1.7565
 li,mbp,16KB,1,sim_CPI,0.5693
 li,mbp,16KB,1,sim_exec_BW,1.9414
-li,mbp,16KB,1,sim_IPB,0,4.3528
+li,mbp,16KB,1,sim_IPB,4.3528
 li,mbp,16KB,1,sim_slip,100440687
 li,mbp,16KB,1,avg_sim_slip,10.0441
 li,mbp,16KB,1,sim_invalid_addrs,0
@@ -3435,7 +3435,7 @@ li,mbp,16KB,0,sim_cycle,5693284
 li,mbp,16KB,0,sim_IPC,1.7565
 li,mbp,16KB,0,sim_CPI,0.5693
 li,mbp,16KB,0,sim_exec_BW,1.9414
-li,mbp,16KB,0,sim_IPB,0,4.3528
+li,mbp,16KB,0,sim_IPB,4.3528
 li,mbp,16KB,0,sim_slip,100440687
 li,mbp,16KB,0,avg_sim_slip,10.0441
 li,mbp,16KB,0,sim_invalid_addrs,0
@@ -3455,7 +3455,7 @@ li,mbp,1MB,1,sim_cycle,5594243
 li,mbp,1MB,1,sim_IPC,1.7876
 li,mbp,1MB,1,sim_CPI,0.5594
 li,mbp,1MB,1,sim_exec_BW,1.9542
-li,mbp,1MB,1,sim_IPB,0,4.3528
+li,mbp,1MB,1,sim_IPB,4.3528
 li,mbp,1MB,1,sim_slip,100595728
 li,mbp,1MB,1,avg_sim_slip,10.0596
 li,mbp,1MB,1,sim_invalid_addrs,0
@@ -3475,7 +3475,7 @@ li,mbp,1MB,0,sim_cycle,5594243
 li,mbp,1MB,0,sim_IPC,1.7876
 li,mbp,1MB,0,sim_CPI,0.5594
 li,mbp,1MB,0,sim_exec_BW,1.9542
-li,mbp,1MB,0,sim_IPB,0,4.3528
+li,mbp,1MB,0,sim_IPB,4.3528
 li,mbp,1MB,0,sim_slip,100595728
 li,mbp,1MB,0,avg_sim_slip,10.0596
 li,mbp,1MB,0,sim_invalid_addrs,0
@@ -3495,7 +3495,7 @@ li,mbp,256KB,1,sim_cycle,5616171
 li,mbp,256KB,1,sim_IPC,1.7806
 li,mbp,256KB,1,sim_CPI,0.5616
 li,mbp,256KB,1,sim_exec_BW,1.9519
-li,mbp,256KB,1,sim_IPB,0,4.3528
+li,mbp,256KB,1,sim_IPB,4.3528
 li,mbp,256KB,1,sim_slip,100576838
 li,mbp,256KB,1,avg_sim_slip,10.0577
 li,mbp,256KB,1,sim_invalid_addrs,0
@@ -3515,7 +3515,7 @@ li,mbp,256KB,0,sim_cycle,5616171
 li,mbp,256KB,0,sim_IPC,1.7806
 li,mbp,256KB,0,sim_CPI,0.5616
 li,mbp,256KB,0,sim_exec_BW,1.9519
-li,mbp,256KB,0,sim_IPB,0,4.3528
+li,mbp,256KB,0,sim_IPB,4.3528
 li,mbp,256KB,0,sim_slip,100576838
 li,mbp,256KB,0,avg_sim_slip,10.0577
 li,mbp,256KB,0,sim_invalid_addrs,0
@@ -3535,7 +3535,7 @@ li,mbp,32KB,1,sim_cycle,5670496
 li,mbp,32KB,1,sim_IPC,1.7635
 li,mbp,32KB,1,sim_CPI,0.5670
 li,mbp,32KB,1,sim_exec_BW,1.9451
-li,mbp,32KB,1,sim_IPB,0,4.3528
+li,mbp,32KB,1,sim_IPB,4.3528
 li,mbp,32KB,1,sim_slip,100509510
 li,mbp,32KB,1,avg_sim_slip,10.0510
 li,mbp,32KB,1,sim_invalid_addrs,0
@@ -3555,7 +3555,7 @@ li,mbp,32KB,0,sim_cycle,5670496
 li,mbp,32KB,0,sim_IPC,1.7635
 li,mbp,32KB,0,sim_CPI,0.5670
 li,mbp,32KB,0,sim_exec_BW,1.9451
-li,mbp,32KB,0,sim_IPB,0,4.3528
+li,mbp,32KB,0,sim_IPB,4.3528
 li,mbp,32KB,0,sim_slip,100509510
 li,mbp,32KB,0,avg_sim_slip,10.0510
 li,mbp,32KB,0,sim_invalid_addrs,0
@@ -3575,7 +3575,7 @@ li,mbp,512KB,1,sim_cycle,5609750
 li,mbp,512KB,1,sim_IPC,1.7826
 li,mbp,512KB,1,sim_CPI,0.5610
 li,mbp,512KB,1,sim_exec_BW,1.9527
-li,mbp,512KB,1,sim_IPB,0,4.3528
+li,mbp,512KB,1,sim_IPB,4.3528
 li,mbp,512KB,1,sim_slip,100556163
 li,mbp,512KB,1,avg_sim_slip,10.0556
 li,mbp,512KB,1,sim_invalid_addrs,0
@@ -3595,7 +3595,7 @@ li,mbp,512KB,0,sim_cycle,5609750
 li,mbp,512KB,0,sim_IPC,1.7826
 li,mbp,512KB,0,sim_CPI,0.5610
 li,mbp,512KB,0,sim_exec_BW,1.9527
-li,mbp,512KB,0,sim_IPB,0,4.3528
+li,mbp,512KB,0,sim_IPB,4.3528
 li,mbp,512KB,0,sim_slip,100556163
 li,mbp,512KB,0,avg_sim_slip,10.0556
 li,mbp,512KB,0,sim_invalid_addrs,0
@@ -3615,7 +3615,7 @@ li,mbp,64KB,1,sim_cycle,5629918
 li,mbp,64KB,1,sim_IPC,1.7762
 li,mbp,64KB,1,sim_CPI,0.5630
 li,mbp,64KB,1,sim_exec_BW,1.9498
-li,mbp,64KB,1,sim_IPB,0,4.3528
+li,mbp,64KB,1,sim_IPB,4.3528
 li,mbp,64KB,1,sim_slip,100529893
 li,mbp,64KB,1,avg_sim_slip,10.0530
 li,mbp,64KB,1,sim_invalid_addrs,0
@@ -3635,7 +3635,7 @@ li,mbp,64KB,0,sim_cycle,5629918
 li,mbp,64KB,0,sim_IPC,1.7762
 li,mbp,64KB,0,sim_CPI,0.5630
 li,mbp,64KB,0,sim_exec_BW,1.9498
-li,mbp,64KB,0,sim_IPB,0,4.3528
+li,mbp,64KB,0,sim_IPB,4.3528
 li,mbp,64KB,0,sim_slip,100529893
 li,mbp,64KB,0,avg_sim_slip,10.0530
 li,mbp,64KB,0,sim_invalid_addrs,0
@@ -3655,7 +3655,7 @@ perl,mbp,128KB,1,sim_cycle,8947956
 perl,mbp,128KB,1,sim_IPC,1.1176
 perl,mbp,128KB,1,sim_CPI,0.8948
 perl,mbp,128KB,1,sim_exec_BW,1.2426
-perl,mbp,128KB,1,sim_IPB,0,4.9035
+perl,mbp,128KB,1,sim_IPB,4.9035
 perl,mbp,128KB,1,sim_slip,90843270
 perl,mbp,128KB,1,avg_sim_slip,9.0843
 perl,mbp,128KB,1,sim_invalid_addrs,0
@@ -3675,7 +3675,7 @@ perl,mbp,128KB,0,sim_cycle,8947982
 perl,mbp,128KB,0,sim_IPC,1.1176
 perl,mbp,128KB,0,sim_CPI,0.8948
 perl,mbp,128KB,0,sim_exec_BW,1.2426
-perl,mbp,128KB,0,sim_IPB,0,4.9035
+perl,mbp,128KB,0,sim_IPB,4.9035
 perl,mbp,128KB,0,sim_slip,90843790
 perl,mbp,128KB,0,avg_sim_slip,9.0844
 perl,mbp,128KB,0,sim_invalid_addrs,0
@@ -3695,7 +3695,7 @@ perl,mbp,16KB,1,sim_cycle,8975298
 perl,mbp,16KB,1,sim_IPC,1.1142
 perl,mbp,16KB,1,sim_CPI,0.8975
 perl,mbp,16KB,1,sim_exec_BW,1.2468
-perl,mbp,16KB,1,sim_IPB,0,4.9035
+perl,mbp,16KB,1,sim_IPB,4.9035
 perl,mbp,16KB,1,sim_slip,90911878
 perl,mbp,16KB,1,avg_sim_slip,9.0912
 perl,mbp,16KB,1,sim_invalid_addrs,0
@@ -3715,7 +3715,7 @@ perl,mbp,16KB,0,sim_cycle,8975324
 perl,mbp,16KB,0,sim_IPC,1.1142
 perl,mbp,16KB,0,sim_CPI,0.8975
 perl,mbp,16KB,0,sim_exec_BW,1.2468
-perl,mbp,16KB,0,sim_IPB,0,4.9035
+perl,mbp,16KB,0,sim_IPB,4.9035
 perl,mbp,16KB,0,sim_slip,90912380
 perl,mbp,16KB,0,avg_sim_slip,9.0912
 perl,mbp,16KB,0,sim_invalid_addrs,0
@@ -3735,7 +3735,7 @@ perl,mbp,1MB,1,sim_cycle,8943650
 perl,mbp,1MB,1,sim_IPC,1.1181
 perl,mbp,1MB,1,sim_CPI,0.8944
 perl,mbp,1MB,1,sim_exec_BW,1.2432
-perl,mbp,1MB,1,sim_IPB,0,4.9035
+perl,mbp,1MB,1,sim_IPB,4.9035
 perl,mbp,1MB,1,sim_slip,90829308
 perl,mbp,1MB,1,avg_sim_slip,9.0829
 perl,mbp,1MB,1,sim_invalid_addrs,0
@@ -3755,7 +3755,7 @@ perl,mbp,1MB,0,sim_cycle,8943650
 perl,mbp,1MB,0,sim_IPC,1.1181
 perl,mbp,1MB,0,sim_CPI,0.8944
 perl,mbp,1MB,0,sim_exec_BW,1.2432
-perl,mbp,1MB,0,sim_IPB,0,4.9035
+perl,mbp,1MB,0,sim_IPB,4.9035
 perl,mbp,1MB,0,sim_slip,90829308
 perl,mbp,1MB,0,avg_sim_slip,9.0829
 perl,mbp,1MB,0,sim_invalid_addrs,0
@@ -3775,7 +3775,7 @@ perl,mbp,256KB,1,sim_cycle,8948194
 perl,mbp,256KB,1,sim_IPC,1.1175
 perl,mbp,256KB,1,sim_CPI,0.8948
 perl,mbp,256KB,1,sim_exec_BW,1.2424
-perl,mbp,256KB,1,sim_IPB,0,4.9035
+perl,mbp,256KB,1,sim_IPB,4.9035
 perl,mbp,256KB,1,sim_slip,90843846
 perl,mbp,256KB,1,avg_sim_slip,9.0844
 perl,mbp,256KB,1,sim_invalid_addrs,0
@@ -3795,7 +3795,7 @@ perl,mbp,256KB,0,sim_cycle,8948220
 perl,mbp,256KB,0,sim_IPC,1.1175
 perl,mbp,256KB,0,sim_CPI,0.8948
 perl,mbp,256KB,0,sim_exec_BW,1.2424
-perl,mbp,256KB,0,sim_IPB,0,4.9035
+perl,mbp,256KB,0,sim_IPB,4.9035
 perl,mbp,256KB,0,sim_slip,90844366
 perl,mbp,256KB,0,avg_sim_slip,9.0844
 perl,mbp,256KB,0,sim_invalid_addrs,0
@@ -3815,7 +3815,7 @@ perl,mbp,32KB,1,sim_cycle,8955263
 perl,mbp,32KB,1,sim_IPC,1.1167
 perl,mbp,32KB,1,sim_CPI,0.8955
 perl,mbp,32KB,1,sim_exec_BW,1.2419
-perl,mbp,32KB,1,sim_IPB,0,4.9035
+perl,mbp,32KB,1,sim_IPB,4.9035
 perl,mbp,32KB,1,sim_slip,90824507
 perl,mbp,32KB,1,avg_sim_slip,9.0825
 perl,mbp,32KB,1,sim_invalid_addrs,0
@@ -3835,7 +3835,7 @@ perl,mbp,32KB,0,sim_cycle,8955289
 perl,mbp,32KB,0,sim_IPC,1.1167
 perl,mbp,32KB,0,sim_CPI,0.8955
 perl,mbp,32KB,0,sim_exec_BW,1.2419
-perl,mbp,32KB,0,sim_IPB,0,4.9035
+perl,mbp,32KB,0,sim_IPB,4.9035
 perl,mbp,32KB,0,sim_slip,90825027
 perl,mbp,32KB,0,avg_sim_slip,9.0825
 perl,mbp,32KB,0,sim_invalid_addrs,0
@@ -3855,7 +3855,7 @@ perl,mbp,512KB,1,sim_cycle,8942084
 perl,mbp,512KB,1,sim_IPC,1.1183
 perl,mbp,512KB,1,sim_CPI,0.8942
 perl,mbp,512KB,1,sim_exec_BW,1.2434
-perl,mbp,512KB,1,sim_IPB,0,4.9035
+perl,mbp,512KB,1,sim_IPB,4.9035
 perl,mbp,512KB,1,sim_slip,90834562
 perl,mbp,512KB,1,avg_sim_slip,9.0835
 perl,mbp,512KB,1,sim_invalid_addrs,0
@@ -3875,7 +3875,7 @@ perl,mbp,512KB,0,sim_cycle,8942110
 perl,mbp,512KB,0,sim_IPC,1.1183
 perl,mbp,512KB,0,sim_CPI,0.8942
 perl,mbp,512KB,0,sim_exec_BW,1.2434
-perl,mbp,512KB,0,sim_IPB,0,4.9035
+perl,mbp,512KB,0,sim_IPB,4.9035
 perl,mbp,512KB,0,sim_slip,90835082
 perl,mbp,512KB,0,avg_sim_slip,9.0835
 perl,mbp,512KB,0,sim_invalid_addrs,0
@@ -3895,7 +3895,7 @@ perl,mbp,64KB,1,sim_cycle,8952799
 perl,mbp,64KB,1,sim_IPC,1.1170
 perl,mbp,64KB,1,sim_CPI,0.8953
 perl,mbp,64KB,1,sim_exec_BW,1.2422
-perl,mbp,64KB,1,sim_IPB,0,4.9035
+perl,mbp,64KB,1,sim_IPB,4.9035
 perl,mbp,64KB,1,sim_slip,90842880
 perl,mbp,64KB,1,avg_sim_slip,9.0843
 perl,mbp,64KB,1,sim_invalid_addrs,0
@@ -3915,7 +3915,7 @@ perl,mbp,64KB,0,sim_cycle,8952825
 perl,mbp,64KB,0,sim_IPC,1.1170
 perl,mbp,64KB,0,sim_CPI,0.8953
 perl,mbp,64KB,0,sim_exec_BW,1.2422
-perl,mbp,64KB,0,sim_IPB,0,4.9035
+perl,mbp,64KB,0,sim_IPB,4.9035
 perl,mbp,64KB,0,sim_slip,90843400
 perl,mbp,64KB,0,avg_sim_slip,9.0843
 perl,mbp,64KB,0,sim_invalid_addrs,0
