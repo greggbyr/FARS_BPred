@@ -1,0 +1,2 @@
+ls bench/little/ | xargs -I % csh -c 'basename % .ss' | xargs -I % csh -c 'grep "%\..ext" bench.db' | grep -oP 'BINARIES\{"\K\w+' | xargs -I % csh -c 'echo "running cmd for % with inst issue in order"; ./Run.pl -db ./bench.db -dir ./results/%_inorder_0KB -benchmark % -sim `pwd`/ss3/sim-outorder -args "-max:inst 10000000 -issue:inorder" >& ./results/%_inorder_0KB.txt'
+

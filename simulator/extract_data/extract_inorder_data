@@ -1,0 +1,9 @@
+echo "bench,bpred,size,frmt,metric,value" > compiled_results/inorder.csv
+ls results/*inorder*.txt | xargs -I % sh -c 'grep -H "bpred_.*" %' | sed -r 's|results/||g' | sed -r 's|\..*:|,|' | sed -r 's|bpred_[^\_]+\.||g' | sed -r 's|\s+#.*||g' | sed -r 's|_inorder_|,inorder,|g' | sed -r 's|\s+|,|g' | sed -r 's|[,]+|,|g' | sed -r 's|KB,|KB,0,|g' | sed -r 's|MB,|MB,0,|g' | sed -r 's|_frmt|,1|g' >> compiled_results/inorder.csv
+ls results/*inorder*.txt | xargs -I % sh -c 'grep -H "sim_.*" %' | sed -r 's|results/||g' | sed -r 's|\..*:|,|' | sed -r 's|bpred_[^\_]+\.||g' | sed -r 's|\s+#.*||g' | sed -r 's|_inorder_|,inorder,|g' | sed -r 's|\s+|,|g' | sed -r 's|[,]+|,|g' | sed -r 's|KB,|KB,0,|g' | sed -r 's|MB,|MB,0,|g' | sed -r 's|_frmt|,1|g' >> compiled_results/inorder.csv
+cp compiled_results/inorder.csv compiled_results/inorder.csv_tmp
+grep -v "fpppp" compiled_results/inorder.csv > compiled_results/inorder.csv_tmp
+grep -v "m88ksim" compiled_results/inorder.csv_tmp > compiled_results/inorder.csv
+grep -v "vortex" compiled_results/inorder.csv > compiled_results/inorder.csv_tmp
+mv compiled_results/inorder.csv_tmp compiled_results/inorder.csv
+
