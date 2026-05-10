@@ -53,14 +53,94 @@
 #include <stdlib.h>
 #include <math.h>
 #include <assert.h>
+#include <stdarg.h>
+#include <string.h>
 
 #include "host.h"
 #include "misc.h"
 #include "machine.h"
 #include "bpred.h"
 
+#ifndef BPRED_TSCL_TRACE
+#define BPRED_TSCL_TRACE 0
+#endif
+
+#ifndef BPRED_TSCL_TRACE_LIMIT
+#define BPRED_TSCL_TRACE_LIMIT 400
+#endif
+
+static FILE *bpred_tscl_trace_fp = NULL;
+static int bpred_tscl_trace_count = 0;
+
+static void
+bpred_tscl_trace_init(void)
+{
+  if (bpred_tscl_trace_fp)
+    return;
+
+  {
+    const char *path = getenv("BPRED_TSCL_TRACE_FILE");
+    if (path && *path)
+      bpred_tscl_trace_fp = fopen(path, "w");
+  }
+
+  if (!bpred_tscl_trace_fp)
+    bpred_tscl_trace_fp = stderr;
+}
+
+static void
+bpred_tscl_trace(const char *fmt, ...)
+{
+#if BPRED_TSCL_TRACE
+  va_list ap;
+
+  if (bpred_tscl_trace_count >= BPRED_TSCL_TRACE_LIMIT)
+    return;
+
+  bpred_tscl_trace_init();
+  fprintf(bpred_tscl_trace_fp, "[TSCL_TRACE %d] ", bpred_tscl_trace_count);
+  va_start(ap, fmt);
+  vfprintf(bpred_tscl_trace_fp, fmt, ap);
+  va_end(ap);
+  fprintf(bpred_tscl_trace_fp, "\n");
+  fflush(bpred_tscl_trace_fp);
+  bpred_tscl_trace_count++;
+#endif
+}
+
+
+
+#define BPRED_RESET_SRC_FLAGS(UP) do { \
+  (UP)->fwd_src.ob = (UP)->fwd_src.fhb = (UP)->fwd_src.oht = 0; \
+  (UP)->fwd_src.tage = (UP)->fwd_src.sc = (UP)->fwd_src.loop = (UP)->fwd_src.llbp = 0; \
+  (UP)->rev_src.ob = (UP)->rev_src.fhb = (UP)->rev_src.oht = 0; \
+  (UP)->rev_src.tage = (UP)->rev_src.sc = (UP)->rev_src.loop = (UP)->rev_src.llbp = 0; \
+} while (0)
+
+
 /* turn this on to enable the SimpleScalar 2.0 RAS bug */
 /* #define RAS_BUG_COMPATIBLE */
+
+
+static int
+bpred_compute_sc_threshold(unsigned int depth)
+{
+  if (depth <= 2)
+    return 2;
+  else if (depth <= 4)
+    return 3;
+  else
+    return 4;
+}
+
+static int
+bpred_compute_loop_threshold(unsigned int depth)
+{
+  if (depth <= 3)
+    return 2;
+  else
+    return 3;
+}
 
 /* create a branch predictor */
 struct bpred_t *			/* branch predictory instance */
@@ -178,7 +258,7 @@ bpred_create(enum bpred_class class,	/* type of predictor to create */
 	bpred_fhb_create(&pred->fhb[0], (shift_width + 1));
 	
 	// Outcome Buffer (OB)
-	bpred_ob_create(pred, 16384); /* Hard setting OB width to 16k for now*/
+	bpred_ob_create(pred, l2size); /* Tie OB width to configured predictor storage */
 	
     break;
 	
@@ -247,7 +327,7 @@ bpred_create(enum bpred_class class,	/* type of predictor to create */
 			bpred_oht_create(class, l2size);
 		
 	// Outcome Buffer (OB)
-	bpred_ob_create(pred, 16384); /* Hard setting OB width to 16k for now*/
+	bpred_ob_create(pred, l2size); /* Tie OB width to configured predictor storage */
 	
     break;	
 
@@ -297,14 +377,16 @@ bpred_create(enum bpred_class class,	/* type of predictor to create */
 		
 		// Rolling Context Register (RCR); only one needed for reversible LLBP
 		bpred_rcr_create(pred, shift_width);
-		
+		/* FALLTHROUGH: LLBP extends TSCL allocation/setup */
 	case BPredTSCL:	
 		// TAGE-SC-L
 		pred->tage_depth = shift_width;	//Gate TAGE tables depth for later prediction/updates
 		pred->num_fhbs = 1;	// Also set the number of FHBs equal to TAGE tables
 		
-		// Base pred is bimod
-		pred->fwd_dirpred.bimod = 
+		// Base pred is bimod (2-bit saturating counter, PC-only). TAGE-SC-L by definition
+		// uses a bimod base; experiments substituting a 2lev/gshare base ("GTSCL") confirmed
+		// it degrades accuracy because TAGE's allocator assumes a stable base signal.
+		pred->fwd_dirpred.bimod =
 			bpred_dir_create(BPred2bit, bimod_size, 0, 0, 0);
 		
 		// TAGE and SC table allocation based on shift width
@@ -315,15 +397,18 @@ bpred_create(enum bpred_class class,	/* type of predictor to create */
 			fatal("cannot allocate SC tables");
 		
 		for (int i = 1; i < shift_width; i++) {
-			pred->fwd_tage_dirpred[i].twolev = 
+			pred->fwd_tage_dirpred[i].twolev =
 				bpred_dir_create(class, 1, (l2size/(2<<(i-1))), (int)(pow((double)xor,(double)(i-1))*(double)l1size+0.5), 1);
-			
-			pred->fwd_sc_dirpred[i].twolev = 
-				bpred_dir_create(class, 1, (l2size/(2<<(i-1))), (int)(pow((double)xor,(double)(i-1))*(double)l1size+0.5), 1);
+
+			/* SC tables use a +1-bit-wider history than the matching TAGE table to decorrelate
+			 * the SC hash from the TAGE hash. Per Seznec, SC banks should index with hashes
+			 * distinct from TAGE so that SC can contribute when TAGE doesn't tag-match. */
+			pred->fwd_sc_dirpred[i].twolev =
+				bpred_dir_create(class, 1, (l2size/(2<<(i-1))), (int)(pow((double)xor,(double)(i-1))*(double)l1size+0.5) + 1, 1);
 		}
-		
+
 		// Loop Tables
-		pred->fwd_loop_dirpred.twolev = 
+		pred->fwd_loop_dirpred.twolev =
 			bpred_dir_create(class, 1, l1size, shift_width, 1);
 			
 		//Need OHT
@@ -338,7 +423,7 @@ bpred_create(enum bpred_class class,	/* type of predictor to create */
 		} else {
 			// TAGE-SC-L
 			
-			// Base pred is bimod
+			// Base pred is bimod, mirrors fwd side.
 			pred->rev_dirpred.bimod =
 				bpred_dir_create(BPred2bit, bimod_size, 0, 0, 0);
 			
@@ -350,11 +435,13 @@ bpred_create(enum bpred_class class,	/* type of predictor to create */
 				fatal("cannot allocate SC tables");
 			
 			for (int i = 1; i < shift_width; i++) {
-				pred->rev_tage_dirpred[i].twolev = 
+				pred->rev_tage_dirpred[i].twolev =
 					bpred_dir_create(class, 1, (l2size/(2<<(i-1))), (int)(pow((double)xor,(double)(i-1))*(double)l1size+0.5), 1);
-				
-				pred->rev_sc_dirpred[i].twolev = 
-					bpred_dir_create(class, 1, (l2size/(2<<(i-1))), (int)(pow((double)xor,(double)(i-1))*(double)l1size+0.5), 1);
+
+				/* SC tables use a +1-bit-wider history than the matching TAGE table to decorrelate
+				 * the SC hash from the TAGE hash. */
+				pred->rev_sc_dirpred[i].twolev =
+					bpred_dir_create(class, 1, (l2size/(2<<(i-1))), (int)(pow((double)xor,(double)(i-1))*(double)l1size+0.5) + 1, 1);
 			}
 			
 			// Loop Tables
@@ -373,7 +460,7 @@ bpred_create(enum bpred_class class,	/* type of predictor to create */
 		bpred_fhb_create(&pred->fhb[0], ((int)(pow((double)xor,(double)(shift_width-2))*(double)l1size+0.5) + 1));
 		
 		// Reversible TSCL/LLBP also needs one Outcome Buffer (OB)
-		bpred_ob_create(pred, 16384); /* Hard setting OB width to 16k for now*/
+		bpred_ob_create(pred, l2size); /* Tie OB width to configured predictor storage */
     break;
 
   case BPredTSBP:
@@ -681,7 +768,8 @@ bpred_dir_create (
 		flipflop = 3 - flipflop;
 	}
 
-	pred_dir->config.two.threshold = 6;			/*	SC/LOOP threshold */
+	pred_dir->config.two.sc_threshold = bpred_compute_sc_threshold(shift_width);
+	pred_dir->config.two.loop_threshold = bpred_compute_loop_threshold(shift_width);
 	
 	if (!(pred_dir->config.two.context = calloc(l2size, sizeof(int))))
 		fatal("cannot allocate context entries");
@@ -697,7 +785,10 @@ bpred_dir_create (
 	
 	if (!(pred_dir->config.two.iter_p = calloc(l2size, sizeof(unsigned char))))
 		fatal("cannot allocate past iteration counter entries");
-	
+
+	if (!(pred_dir->config.two.dir_bit = calloc(l2size, sizeof(unsigned char))))
+		fatal("cannot allocate loop body direction-bit entries");
+
 	if (!(pred_dir->config.two.tag = calloc(l2size, sizeof(md_addr_t))))
 		fatal("cannot allocate tag entries");		/* tags for TAGE tables */
 	
@@ -1315,6 +1406,78 @@ bpred_reg_stats(struct bpred_t *pred,	/* branch predictor instance */
   stat_reg_formula(sdb, buf,
 		   "RAS prediction rate (i.e., RAS hits/used RAS)",
 		   buf1, "%9.4f");
+
+  /* detailed instrumentation */
+  sprintf(buf, "%s.ob_fwd_lookups", name); stat_reg_counter(sdb, buf, "number of forward Outcome Buffer probes", &pred->ob_fwd_lookups, 0, NULL);
+  sprintf(buf, "%s.ob_fwd_hits", name); stat_reg_counter(sdb, buf, "number of forward Outcome Buffer hits", &pred->ob_fwd_hits, 0, NULL);
+  sprintf(buf, "%s.ob_fwd_chosen", name); stat_reg_counter(sdb, buf, "number of forward Outcome Buffer selections", &pred->ob_fwd_chosen, 0, NULL);
+  sprintf(buf, "%s.ob_fwd_correct", name); stat_reg_counter(sdb, buf, "number of correct forward Outcome Buffer selections", &pred->ob_fwd_correct, 0, NULL);
+  sprintf(buf, "%s.ob_rev_lookups", name); stat_reg_counter(sdb, buf, "number of reverse Outcome Buffer probes", &pred->ob_rev_lookups, 0, NULL);
+  sprintf(buf, "%s.ob_rev_hits", name); stat_reg_counter(sdb, buf, "number of reverse Outcome Buffer hits", &pred->ob_rev_hits, 0, NULL);
+  sprintf(buf, "%s.ob_rev_chosen", name); stat_reg_counter(sdb, buf, "number of reverse Outcome Buffer selections", &pred->ob_rev_chosen, 0, NULL);
+  sprintf(buf, "%s.ob_rev_correct", name); stat_reg_counter(sdb, buf, "number of correct reverse Outcome Buffer selections", &pred->ob_rev_correct, 0, NULL);
+
+  sprintf(buf, "%s.fhb_fwd_lookups", name); stat_reg_counter(sdb, buf, "number of forward FHB probes", &pred->fhb_fwd_lookups, 0, NULL);
+  sprintf(buf, "%s.fhb_rev_lookups", name); stat_reg_counter(sdb, buf, "number of reverse FHB probes", &pred->fhb_rev_lookups, 0, NULL);
+  sprintf(buf, "%s.fhb_fwd_valid_out", name); stat_reg_counter(sdb, buf, "number of forward FHB valid-out events", &pred->fhb_fwd_valid_out, 0, NULL);
+  sprintf(buf, "%s.fhb_rev_valid_out", name); stat_reg_counter(sdb, buf, "number of reverse FHB valid-out events", &pred->fhb_rev_valid_out, 0, NULL);
+  sprintf(buf, "%s.fhb_fwd_pred_uses", name); stat_reg_counter(sdb, buf, "number of forward FHB prediction uses", &pred->fhb_fwd_pred_uses, 0, NULL);
+  sprintf(buf, "%s.fhb_rev_pred_uses", name); stat_reg_counter(sdb, buf, "number of reverse FHB prediction uses", &pred->fhb_rev_pred_uses, 0, NULL);
+  sprintf(buf, "%s.fhb_fwd_update_uses", name); stat_reg_counter(sdb, buf, "number of forward FHB update uses", &pred->fhb_fwd_update_uses, 0, NULL);
+  sprintf(buf, "%s.fhb_rev_update_uses", name); stat_reg_counter(sdb, buf, "number of reverse FHB update uses", &pred->fhb_rev_update_uses, 0, NULL);
+  sprintf(buf, "%s.fhb_fwd_writes", name); stat_reg_counter(sdb, buf, "number of forward FHB writes", &pred->fhb_fwd_writes, 0, NULL);
+  sprintf(buf, "%s.fhb_rev_writes", name); stat_reg_counter(sdb, buf, "number of reverse FHB writes", &pred->fhb_rev_writes, 0, NULL);
+  sprintf(buf, "%s.fhb_fwd_ob_bypassed", name); stat_reg_counter(sdb, buf, "number of forward FHB bypasses due to OB", &pred->fhb_fwd_ob_bypassed, 0, NULL);
+  sprintf(buf, "%s.fhb_rev_ob_bypassed", name); stat_reg_counter(sdb, buf, "number of reverse FHB bypasses due to OB", &pred->fhb_rev_ob_bypassed, 0, NULL);
+  sprintf(buf, "%s.fhb_fwd_oht_bypassed", name); stat_reg_counter(sdb, buf, "number of forward FHB bypasses due to OHT", &pred->fhb_fwd_oht_bypassed, 0, NULL);
+  sprintf(buf, "%s.fhb_rev_oht_bypassed", name); stat_reg_counter(sdb, buf, "number of reverse FHB bypasses due to OHT", &pred->fhb_rev_oht_bypassed, 0, NULL);
+
+  sprintf(buf, "%s.oht_fwd_lookups", name); stat_reg_counter(sdb, buf, "number of forward OHT probes", &pred->oht_fwd_lookups, 0, NULL);
+  sprintf(buf, "%s.oht_fwd_hits", name); stat_reg_counter(sdb, buf, "number of forward OHT hits", &pred->oht_fwd_hits, 0, NULL);
+  sprintf(buf, "%s.oht_fwd_chosen", name); stat_reg_counter(sdb, buf, "number of forward OHT selections", &pred->oht_fwd_chosen, 0, NULL);
+  sprintf(buf, "%s.oht_fwd_correct", name); stat_reg_counter(sdb, buf, "number of correct forward OHT selections", &pred->oht_fwd_correct, 0, NULL);
+  sprintf(buf, "%s.oht_rev_lookups", name); stat_reg_counter(sdb, buf, "number of reverse OHT probes", &pred->oht_rev_lookups, 0, NULL);
+  sprintf(buf, "%s.oht_rev_hits", name); stat_reg_counter(sdb, buf, "number of reverse OHT hits", &pred->oht_rev_hits, 0, NULL);
+  sprintf(buf, "%s.oht_rev_chosen", name); stat_reg_counter(sdb, buf, "number of reverse OHT selections", &pred->oht_rev_chosen, 0, NULL);
+  sprintf(buf, "%s.oht_rev_correct", name); stat_reg_counter(sdb, buf, "number of correct reverse OHT selections", &pred->oht_rev_correct, 0, NULL);
+
+  sprintf(buf, "%s.frmt_fwd_lookups", name); stat_reg_counter(sdb, buf, "number of forward FRMT lookups", &pred->frmt_fwd_lookups, 0, NULL);
+  sprintf(buf, "%s.frmt_fwd_hits", name); stat_reg_counter(sdb, buf, "number of forward FRMT hits", &pred->frmt_fwd_hits, 0, NULL);
+  sprintf(buf, "%s.frmt_fwd_misses", name); stat_reg_counter(sdb, buf, "number of forward FRMT misses", &pred->frmt_fwd_misses, 0, NULL);
+  sprintf(buf, "%s.frmt_rev_lookups", name); stat_reg_counter(sdb, buf, "number of reverse FRMT lookups", &pred->frmt_rev_lookups, 0, NULL);
+  sprintf(buf, "%s.frmt_rev_hits", name); stat_reg_counter(sdb, buf, "number of reverse FRMT hits", &pred->frmt_rev_hits, 0, NULL);
+  sprintf(buf, "%s.frmt_rev_misses", name); stat_reg_counter(sdb, buf, "number of reverse FRMT misses", &pred->frmt_rev_misses, 0, NULL);
+
+  sprintf(buf, "%s.tage_fwd_lookups", name); stat_reg_counter(sdb, buf, "number of forward TAGE lookup attempts", &pred->tage_fwd_lookups, 0, NULL);
+  sprintf(buf, "%s.tage_rev_lookups", name); stat_reg_counter(sdb, buf, "number of reverse TAGE lookup attempts", &pred->tage_rev_lookups, 0, NULL);
+  sprintf(buf, "%s.tage_fwd_tag_matches", name); stat_reg_counter(sdb, buf, "number of forward TAGE tag matches", &pred->tage_fwd_tag_matches, 0, NULL);
+  sprintf(buf, "%s.tage_rev_tag_matches", name); stat_reg_counter(sdb, buf, "number of reverse TAGE tag matches", &pred->tage_rev_tag_matches, 0, NULL);
+
+  sprintf(buf, "%s.sc_fwd_lookups", name); stat_reg_counter(sdb, buf, "number of forward SC summation evaluations", &pred->sc_fwd_lookups, 0, NULL);
+  sprintf(buf, "%s.sc_rev_lookups", name); stat_reg_counter(sdb, buf, "number of reverse SC summation evaluations", &pred->sc_rev_lookups, 0, NULL);
+  sprintf(buf, "%s.sc_fwd_inversions", name); stat_reg_counter(sdb, buf, "number of forward SC-driven inversions", &pred->sc_fwd_inversions, 0, NULL);
+  sprintf(buf, "%s.sc_rev_inversions", name); stat_reg_counter(sdb, buf, "number of reverse SC-driven inversions", &pred->sc_rev_inversions, 0, NULL);
+  sprintf(buf, "%s.sc_fwd_threshold_checks", name); stat_reg_counter(sdb, buf, "number of forward SC threshold checks", &pred->sc_fwd_threshold_checks, 0, NULL);
+  sprintf(buf, "%s.sc_rev_threshold_checks", name); stat_reg_counter(sdb, buf, "number of reverse SC threshold checks", &pred->sc_rev_threshold_checks, 0, NULL);
+  sprintf(buf, "%s.sc_fwd_threshold_pass", name); stat_reg_counter(sdb, buf, "number of forward SC threshold passes", &pred->sc_fwd_threshold_pass, 0, NULL);
+  sprintf(buf, "%s.sc_rev_threshold_pass", name); stat_reg_counter(sdb, buf, "number of reverse SC threshold passes", &pred->sc_rev_threshold_pass, 0, NULL);
+  sprintf(buf, "%s.sc_fwd_updates", name); stat_reg_counter(sdb, buf, "number of forward SC updates", &pred->sc_fwd_updates, 0, NULL);
+  sprintf(buf, "%s.sc_rev_updates", name); stat_reg_counter(sdb, buf, "number of reverse SC updates", &pred->sc_rev_updates, 0, NULL);
+
+  sprintf(buf, "%s.loop_fwd_lookups", name); stat_reg_counter(sdb, buf, "number of forward loop predictor lookups", &pred->loop_fwd_lookups, 0, NULL);
+  sprintf(buf, "%s.loop_rev_lookups", name); stat_reg_counter(sdb, buf, "number of reverse loop predictor lookups", &pred->loop_rev_lookups, 0, NULL);
+  sprintf(buf, "%s.loop_fwd_hits", name); stat_reg_counter(sdb, buf, "number of forward loop predictor hits", &pred->loop_fwd_hits, 0, NULL);
+  sprintf(buf, "%s.loop_rev_hits", name); stat_reg_counter(sdb, buf, "number of reverse loop predictor hits", &pred->loop_rev_hits, 0, NULL);
+  sprintf(buf, "%s.loop_fwd_chosen", name); stat_reg_counter(sdb, buf, "number of forward loop predictor selections", &pred->loop_fwd_chosen, 0, NULL);
+  sprintf(buf, "%s.loop_rev_chosen", name); stat_reg_counter(sdb, buf, "number of reverse loop predictor selections", &pred->loop_rev_chosen, 0, NULL);
+
+  sprintf(buf, "%s.llbp_fwd_lookups", name); stat_reg_counter(sdb, buf, "number of forward LLBP lookup attempts", &pred->llbp_fwd_lookups, 0, NULL);
+  sprintf(buf, "%s.llbp_rev_lookups", name); stat_reg_counter(sdb, buf, "number of reverse LLBP lookup attempts", &pred->llbp_rev_lookups, 0, NULL);
+  sprintf(buf, "%s.llbp_fwd_hits", name); stat_reg_counter(sdb, buf, "number of forward LLBP hits", &pred->llbp_fwd_hits, 0, NULL);
+  sprintf(buf, "%s.llbp_rev_hits", name); stat_reg_counter(sdb, buf, "number of reverse LLBP hits", &pred->llbp_rev_hits, 0, NULL);
+  sprintf(buf, "%s.llbp_fwd_chosen", name); stat_reg_counter(sdb, buf, "number of forward LLBP selections", &pred->llbp_fwd_chosen, 0, NULL);
+  sprintf(buf, "%s.llbp_rev_chosen", name); stat_reg_counter(sdb, buf, "number of reverse LLBP selections", &pred->llbp_rev_chosen, 0, NULL);
+
 }
 
 void
@@ -1352,6 +1515,41 @@ bpred_after_priming(struct bpred_t *bpred)
   bpred->reverse_retstack_pops = 0;
   bpred->reverse_retstack_pushes = 0;
   bpred->reverse_ras_hits = 0;
+
+  bpred->ob_fwd_lookups = bpred->ob_fwd_hits = bpred->ob_fwd_chosen = bpred->ob_fwd_correct = 0;
+  bpred->ob_rev_lookups = bpred->ob_rev_hits = bpred->ob_rev_chosen = bpred->ob_rev_correct = 0;
+
+  bpred->fhb_fwd_lookups = bpred->fhb_rev_lookups = 0;
+  bpred->fhb_fwd_valid_out = bpred->fhb_rev_valid_out = 0;
+  bpred->fhb_fwd_pred_uses = bpred->fhb_rev_pred_uses = 0;
+  bpred->fhb_fwd_update_uses = bpred->fhb_rev_update_uses = 0;
+  bpred->fhb_fwd_writes = bpred->fhb_rev_writes = 0;
+  bpred->fhb_fwd_ob_bypassed = bpred->fhb_rev_ob_bypassed = 0;
+  bpred->fhb_fwd_oht_bypassed = bpred->fhb_rev_oht_bypassed = 0;
+
+  bpred->oht_fwd_lookups = bpred->oht_fwd_hits = bpred->oht_fwd_chosen = bpred->oht_fwd_correct = 0;
+  bpred->oht_rev_lookups = bpred->oht_rev_hits = bpred->oht_rev_chosen = bpred->oht_rev_correct = 0;
+
+  bpred->frmt_fwd_lookups = bpred->frmt_fwd_hits = bpred->frmt_fwd_misses = 0;
+  bpred->frmt_rev_lookups = bpred->frmt_rev_hits = bpred->frmt_rev_misses = 0;
+
+  bpred->tage_fwd_lookups = bpred->tage_rev_lookups = 0;
+  bpred->tage_fwd_tag_matches = bpred->tage_rev_tag_matches = 0;
+
+  bpred->sc_fwd_lookups = bpred->sc_rev_lookups = 0;
+  bpred->sc_fwd_inversions = bpred->sc_rev_inversions = 0;
+  bpred->sc_fwd_threshold_checks = bpred->sc_rev_threshold_checks = 0;
+  bpred->sc_fwd_threshold_pass = bpred->sc_rev_threshold_pass = 0;
+  bpred->sc_fwd_updates = bpred->sc_rev_updates = 0;
+
+  bpred->loop_fwd_lookups = bpred->loop_rev_lookups = 0;
+  bpred->loop_fwd_hits = bpred->loop_rev_hits = 0;
+  bpred->loop_fwd_chosen = bpred->loop_rev_chosen = 0;
+
+  bpred->llbp_fwd_lookups = bpred->llbp_rev_lookups = 0;
+  bpred->llbp_fwd_hits = bpred->llbp_rev_hits = 0;
+  bpred->llbp_fwd_chosen = bpred->llbp_rev_chosen = 0;
+
 }
 
 #define BIMOD_HASH(PRED, ADDR)						\
@@ -1388,7 +1586,12 @@ int key_from_llbp_features (struct bpred_dir_t *pred_dir,	/* branch dir predicto
 	return key;
 }
 
-/* Used to calculate future 2nd level table indexes/keys for TSCL/LLBP*/
+/* Used to calculate future 2nd level table indexes/keys for TSCL/LLBP.
+ * Mirrors key_from_features so that future-mode TAGE updates write entries with the
+ * same hashing convention that subsequent normal lookups will use. The previous version
+ * applied an unconditional bit-flip of the lower (target shift_width) bits and a no-op
+ * flow_mode-conditional right-shift; both desync'd this key from key_from_features and
+ * orphaned the future-mode-written entries from later lookups. */
 int future_key_from_tage (struct bpred_t *pred,	/* branch pred inst*/
 		struct bpred_dir_t *pred_dir,	/* branch dir predictor inst */
 		 md_addr_t baddr,			/* branch address */
@@ -1396,17 +1599,13 @@ int future_key_from_tage (struct bpred_t *pred,	/* branch pred inst*/
 		 int flow_mode)				/* flow_mode flag for determining key bits*/
 {
 	int l1index, key;
+	(void)pred;
+	(void)tage_table;
+	(void)flow_mode;
 
     /* traverse 2-level tables */
     l1index = (baddr >> MD_BR_SHIFT) & (pred_dir->config.two.l1size - 1);
     key = pred_dir->config.two.shiftregs[l1index];
-	
-	// Need to hijack the key depending on the flow_mode and tage table num
-	if (flow_mode) {	// Need to shift key right bc REV mode the latest history is on the left
-		key = key >> (pred_dir->config.two.shift_width - pred->fwd_tage_dirpred[tage_table].twolev->config.two.shift_width);
-	}
-	
-	key = key ^ ((1 << pred->fwd_tage_dirpred[tage_table].twolev->config.two.shift_width) - 1);
         
 	if (pred_dir->config.two.xor) {
 	    /* this L2 index computation is more "compatible" to McFarling's
@@ -1463,8 +1662,12 @@ int unmasked_key_from_frmt(
 	struct bpred_t *pred, 		/* branch predictor instance */
 	int key						/* branch key/tag to exchange */
 ) {
+	int mapped;
 	key = key & (pred->fwd_dirpred.frmt->budget - 1); //Mask based on FRMT budget
-	return pred->fwd_dirpred.frmt->tag[key];
+	mapped = pred->fwd_dirpred.frmt->tag[key];
+	pred->frmt_rev_lookups++;
+	if (mapped) pred->frmt_rev_hits++; else pred->frmt_rev_misses++;
+	return mapped;
 }
 
 void map_unmasked_key_to_frmt(
@@ -1474,14 +1677,21 @@ void map_unmasked_key_to_frmt(
 ) {
 	rev_key = rev_key & (pred->fwd_dirpred.frmt->budget - 1); //Mask based on FRMT budget
 	pred->fwd_dirpred.frmt->tag[rev_key] = fwd_key;
+#if BPRED_TSCL_TRACE
+	bpred_tscl_trace("FRMT_KEY_MAP rev_idx=%d fwd_key=%d", rev_key, fwd_key);
+#endif
 }
 
 md_addr_t addr_from_frmt(
 	struct bpred_t *pred, 		/* branch predictor instance */
 	int baddr						/* branch addr to exchange */
 ) {
+	md_addr_t mapped;
 	baddr = baddr & (pred->fwd_dirpred.frmt->budget - 1); //Mask based on FRMT budget
-	return pred->fwd_dirpred.frmt->addr[baddr];
+	mapped = pred->fwd_dirpred.frmt->addr[baddr];
+	pred->frmt_rev_lookups++;
+	if (mapped) pred->frmt_rev_hits++; else pred->frmt_rev_misses++;
+	return mapped;
 }
 
 void map_addr_to_frmt(
@@ -1491,6 +1701,9 @@ void map_addr_to_frmt(
 ) {
 	rbaddr = rbaddr & (pred->fwd_dirpred.frmt->budget - 1); //Mask based on FRMT budget
 	pred->fwd_dirpred.frmt->addr[rbaddr] = fbaddr;
+#if BPRED_TSCL_TRACE
+	bpred_tscl_trace("FRMT_ADDR_MAP rev_idx=%d fwd_addr=0x%08x", rbaddr, (unsigned int)fbaddr);
+#endif
 }
 
 int context_from_frmt(
@@ -1599,10 +1812,13 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 {
 	struct bpred_btb_ent_t *pbtb = NULL;
 	int index, i;
-	bool_t invert = FALSE;
+	bool_t invert = FALSE;		/* FWD-side SC inversion flag (consumed by FWD prediction) */
+	bool_t rev_invert = FALSE;	/* REV-side SC inversion flag, kept separate so REV computation does not pollute FWD prediction */
 	  
-	int fwd_valid_outcome = NULL;
-	int rev_valid_outcome = NULL;
+	int fwd_valid_outcome = 0;
+	int rev_valid_outcome = 0;
+	int have_fwd_valid_outcome = FALSE;
+	int have_rev_valid_outcome = FALSE;
 
 	if (!dir_update_ptr)
 		panic("no bpred update record");
@@ -1634,14 +1850,29 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 	dir_update_ptr->fwd_pdir1 = NULL;
 	dir_update_ptr->fwd_pdir2 = NULL;
 	dir_update_ptr->fwd_pmeta = NULL;
-	dir_update_ptr->fwd_tage_pred = NULL;
+	dir_update_ptr->fwd_tage_pred = 0;
+	dir_update_ptr->fwd_tage_match = 0;
+	dir_update_ptr->fwd_loop_match = 0;
+	dir_update_ptr->fwd_loop_pred = 0;
+	dir_update_ptr->fwd_llbt_match = 0;
+	dir_update_ptr->fwd_invert = 0;
+	dir_update_ptr->fwd_valid_outcome = 0;
+	dir_update_ptr->fwd_have_valid_outcome = 0;
 	
 	// REV DIR Pointers
 	dir_update_ptr->rev_dir.ras = FALSE;
 	dir_update_ptr->rev_pdir1 = NULL;
 	dir_update_ptr->rev_pdir2 = NULL;
 	dir_update_ptr->rev_pmeta = NULL;
-	dir_update_ptr->rev_tage_pred = NULL;
+	dir_update_ptr->rev_tage_pred = 0;
+	dir_update_ptr->rev_tage_match = 0;
+	dir_update_ptr->rev_loop_match = 0;
+	dir_update_ptr->rev_loop_pred = 0;
+	dir_update_ptr->rev_llbt_match = 0;
+	dir_update_ptr->rev_invert = 0;
+	dir_update_ptr->rev_valid_outcome = 0;
+	dir_update_ptr->rev_have_valid_outcome = 0;
+	BPRED_RESET_SRC_FLAGS(dir_update_ptr);
 	
 	/* Except for jumps, get a pointer to direction-prediction bits */
 	switch (pred->class) {
@@ -1718,37 +1949,57 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 		case BPredLLBP:
 		case BPred2bit:
 			if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND)) {
-				//Check if any valid past outcome results for FWD (and REV if FRMT set)
-				if (((pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||(pred->class==BPredOB)) &&
-				(!flow_mode && pred->ob.fv[pred->ob.end])) {
-					//Check if OB has valid past outcome results
-					fwd_valid_outcome = pred->ob.oc[pred->ob.end];
-				}
-				
-				if ((fwd_valid_outcome==NULL) && (pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||
-				(pred->class==BPredOB)||(pred->class==BPredOHT)||(pred->class==BPred2Level)) {
-					if (!flow_mode && pred->fhb[0].fv[pred->fhb[0].top]) {
-						//Check if FHB has valid past outcome results
-						fwd_valid_outcome = pred->fhb[0].o[pred->fhb[0].top];
+				/* Reverse-history based prediction aids are only consulted in reverse mode today. */
+				if (!flow_mode) {
+					/* forward mode intentionally does not consult OB/FHB/OHT for prediction */
+				} else {
+					if ((pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||(pred->class==BPredOB)) {
+						pred->ob_rev_lookups++;
+						if (pred->ob.rv[pred->ob.beg]) {
+							pred->ob_rev_hits++;
+							rev_valid_outcome = pred->ob.oc[pred->ob.beg];
+					have_rev_valid_outcome = 1;
+							have_rev_valid_outcome = TRUE;
+							dir_update_ptr->rev_src.ob = TRUE;
+						}
+					}
+
+					if (((pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||
+					     (pred->class==BPredOB)||(pred->class==BPredOHT)||(pred->class==BPred2Level))) {
+						pred->fhb_rev_lookups++;
+						if (have_rev_valid_outcome)
+							pred->fhb_rev_ob_bypassed++;
+						else if (pred->fhb[0].rv[pred->fhb[0].bot]) {
+							rev_valid_outcome = pred->fhb[0].o[pred->fhb[0].bot];
+					have_rev_valid_outcome = 1;
+							have_rev_valid_outcome = TRUE;
+							pred->fhb_rev_pred_uses++;
+							dir_update_ptr->rev_src.fhb = TRUE;
+						}
+					}
+
+					if (((pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||
+					     (pred->class==BPredOHT))) {
+						int key;
+						pred->oht_rev_lookups++;
+						if (have_rev_valid_outcome)
+							pred->fhb_rev_oht_bypassed++;
+						else {
+							if ((pred->class==BPredMBP)||(pred->class==BPredOHT))
+								key = key_from_features (pred->fwd_dirpred.twolev, rbaddr);
+							else
+								key = key_from_features (pred->fwd_tage_dirpred[pred->tage_depth-1].twolev, rbaddr);
+							key = key & (pred->fwd_dirpred.oht->oht.size - 1);
+							if (pred->fwd_dirpred.oht->oht.rev_valid[key]) {
+								pred->oht_rev_hits++;
+								rev_valid_outcome = pred->fwd_dirpred.oht->oht.oc[key];
+						have_rev_valid_outcome = 1;
+								have_rev_valid_outcome = TRUE;
+								dir_update_ptr->rev_src.oht = TRUE;
+							}
+						}
 					}
 				}
-					
-				if ((fwd_valid_outcome==NULL) && (pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||
-				(pred->class==BPredOHT)) {
-					//Check if OHT has valid past outcome results
-					int key;
-					
-					if ((pred->class==BPredMBP)||(pred->class==BPredOHT))
-						key = key_from_features (pred->fwd_dirpred.twolev, fbaddr); // Get unmasked key from GHR and PC
-					else 
-						key = key_from_features (pred->fwd_tage_dirpred[pred->tage_depth-1].twolev, fbaddr); // Get unmasked key from GHR and PC
-					
-					key = key & (pred->fwd_dirpred.oht->oht.size - 1); // mask key based on predictor table size
-					
-					if (!flow_mode && pred->fwd_dirpred.oht->oht.fwd_valid[key]) {
-						fwd_valid_outcome = pred->fwd_dirpred.oht->oht.oc[key];
-					}
-				}			
 					
 				if ((pred->class==BPredMBP)||(pred->class==BPredOB)||(pred->class==BPredOHT)||(pred->class==BPred2Level)) {
 					dir_update_ptr->fwd_pdir1 = bpred_dir_lookup(pred, pred->fwd_dirpred.twolev, fbaddr, 0, frmt);
@@ -1770,16 +2021,19 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 								
 								// LLBP is indexed by RCR CCID!
 								// If matched unmasked TAGE key, set tage pointer and note it and hist length
+								pred->llbp_fwd_lookups++;
 								if (llbt_key==pred->fwd_pb_dirpred[i].twolev->config.two.tag[pred->rcr.ccid] && 
 								pred->rcr.ccid==pred->fwd_pb_dirpred[i].twolev->config.two.context[pred->rcr.ccid]) {
 									llbt = bpred_dir_lookup(pred, pred->fwd_pb_dirpred[i].twolev, fbaddr, 0, frmt);
 									llbt_match = pred->fwd_pb_dirpred[i].twolev->config.two.hist_length[pred->rcr.ccid];
+									pred->llbp_fwd_hits++;
 									break;	// Break at first (highest) match
 								}
 							}
 						}
 						
 						for (int i = pred->tage_depth-1; i >= 1; i--) {
+							pred->tage_fwd_lookups++;
 							// Get tage and sc tags and compare to current tag
 							int tage_key = key_from_features (pred->fwd_tage_dirpred[i].twolev, fbaddr); // Get unmasked key from GHR and PC
 							int masked_tage_key = tage_key & (pred->fwd_tage_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
@@ -1788,35 +2042,67 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 							if (tage_key==pred->fwd_tage_dirpred[i].twolev->config.two.tag[masked_tage_key]) {
 								tage = bpred_dir_lookup(pred, pred->fwd_tage_dirpred[i].twolev, fbaddr, 0, frmt);
 								tage_match = pred->fwd_tage_dirpred[i].twolev->config.two.shift_width;
+								pred->tage_fwd_tag_matches++;
+								dir_update_ptr->fwd_src.tage = TRUE;
 								break;	// Break at first (highest) match
 							}
 						}
 						
 						for (int i = 1; i < pred->tage_depth; i++) {
+							pred->sc_fwd_lookups++;
 							int sc_key = key_from_features (pred->fwd_sc_dirpred[i].twolev, fbaddr); // Get unmasked key from GHR and PC
 							int masked_sc_key = sc_key & (pred->fwd_sc_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
-							
-							if (sc_key==pred->fwd_sc_dirpred[i].twolev->config.two.tag[masked_sc_key]) {
-								dir_update_ptr->fwd_dir.sum = dir_update_ptr->fwd_dir.sum + (pred->fwd_sc_dirpred[i].twolev->config.two.l2table[masked_sc_key] >= 2); 
+
+							#if BPRED_TSCL_TRACE
+						bpred_tscl_trace("LOOKUP_FWD_SC depth=%d addr=0x%08x key=%d idx=%d comptag=%d storedtag=%d ctr=%d", i, (unsigned int)fbaddr, sc_key, masked_sc_key, sc_key, pred->fwd_sc_dirpred[i].twolev->config.two.tag[masked_sc_key], pred->fwd_sc_dirpred[i].twolev->config.two.l2table[masked_sc_key]);
+						#endif
+						if (sc_key==pred->fwd_sc_dirpred[i].twolev->config.two.tag[masked_sc_key]) {
+								dir_update_ptr->fwd_dir.sum = dir_update_ptr->fwd_dir.sum + (pred->fwd_sc_dirpred[i].twolev->config.two.l2table[masked_sc_key] >= 2);
 							}
 						}
 						
 						// Get loop tag and compare to current tag
+						pred->loop_fwd_lookups++;
 						int loop_key = key_from_features (pred->fwd_loop_dirpred.twolev, fbaddr); // Get unmasked key from GHR and PC
-						int masked_loop_key = loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l1size - 1); // mask key based on predictor table size
+						int masked_loop_key = loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
 						
+						#if BPRED_TSCL_TRACE
+						bpred_tscl_trace("LOOKUP_FWD_LOOP addr=0x%08x key=%d idx=%d comptag=%d storedtag=%d ctr=%d thr=%d", (unsigned int)fbaddr, loop_key, masked_loop_key, loop_key, pred->fwd_loop_dirpred.twolev->config.two.tag[masked_loop_key], pred->fwd_loop_dirpred.twolev->config.two.l2table[masked_loop_key], pred->fwd_loop_dirpred.twolev->config.two.loop_threshold);
+						#endif
 						if (loop_key==pred->fwd_loop_dirpred.twolev->config.two.tag[masked_loop_key]) {
+#if BPRED_TSCL_TRACE
+							bpred_tscl_trace("FWD_LOOP_MATCH addr=0x%08x key=%d idx=%d tag=%d ctr=%d thr=%d iter_c=%d iter_p=%d",
+								(unsigned int)fbaddr, loop_key, masked_loop_key,
+								pred->fwd_loop_dirpred.twolev->config.two.tag[masked_loop_key],
+								pred->fwd_loop_dirpred.twolev->config.two.l2table[masked_loop_key],
+								pred->fwd_loop_dirpred.twolev->config.two.loop_threshold,
+								pred->fwd_loop_dirpred.twolev->config.two.iter_c[masked_loop_key],
+								pred->fwd_loop_dirpred.twolev->config.two.iter_p[masked_loop_key]);
+#endif
 							loop = bpred_dir_lookup(pred, pred->fwd_loop_dirpred.twolev, fbaddr, 0, frmt);
-							
-							if (*loop >= pred->fwd_loop_dirpred.twolev->config.two.threshold)
+
+							if (*loop >= pred->fwd_loop_dirpred.twolev->config.two.loop_threshold) {
 								loop_match = 1;
+								pred->loop_fwd_hits++;
+								dir_update_ptr->fwd_src.loop = TRUE;
+								/* In body: predict dir_bit. At exit (iter_c == iter_p): predict !dir_bit. */
+								{
+									int in_body = (pred->fwd_loop_dirpred.twolev->config.two.iter_c[masked_loop_key]
+										< pred->fwd_loop_dirpred.twolev->config.two.iter_p[masked_loop_key]);
+									int dir = pred->fwd_loop_dirpred.twolev->config.two.dir_bit[masked_loop_key];
+									dir_update_ptr->fwd_loop_pred = in_body ? dir : !dir;
+								}
+							}
 						}
 					}
 					
 					if (loop_match) {
+						pred->loop_fwd_chosen++;
 						dir_update_ptr->fwd_pdir1 = loop;
 					} else {
 						if (llbt_match>tage_match) {
+							pred->llbp_fwd_chosen++;
+							dir_update_ptr->fwd_src.llbp = TRUE;
 							dir_update_ptr->fwd_pdir1 = llbt;
 						} else if (tage_match) {
 							dir_update_ptr->fwd_pdir1 = tage;
@@ -1829,14 +2115,33 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 							dir_update_ptr->fwd_dir.sum = dir_update_ptr->fwd_dir.sum + (*(dir_update_ptr->fwd_pdir1) >= 2);
 							
 							// invert on overthreshold summation
-							if (dir_update_ptr->fwd_dir.sum >= pred->fwd_sc_dirpred[pred->tage_depth-1].twolev->config.two.threshold)
+							pred->sc_fwd_threshold_checks++;
+							if (dir_update_ptr->fwd_dir.sum >= pred->fwd_sc_dirpred[pred->tage_depth-1].twolev->config.two.sc_threshold) {
+								pred->sc_fwd_threshold_pass++;
+								pred->sc_fwd_inversions++;
+								dir_update_ptr->fwd_src.sc = TRUE;
 								invert = TRUE;
+							}
 						}
 					}
 					
 					// Save TAGE prediction as a valid outcome could have been used.
 					if ((pred->class==BPredTSCL)||(pred->class==BPredLLBP)) {
-						dir_update_ptr->fwd_tage_pred = (*(dir_update_ptr->fwd_pdir1) >= 2);
+						dir_update_ptr->fwd_tage_pred = loop_match
+							? dir_update_ptr->fwd_loop_pred
+							: (*(dir_update_ptr->fwd_pdir1) >= 2);
+						dir_update_ptr->fwd_tage_match = tage_match;
+						dir_update_ptr->fwd_loop_match = loop_match;
+						dir_update_ptr->fwd_llbt_match = llbt_match;
+						dir_update_ptr->fwd_invert = invert;
+						dir_update_ptr->fwd_valid_outcome = fwd_valid_outcome;
+						dir_update_ptr->fwd_have_valid_outcome = have_fwd_valid_outcome;
+#if BPRED_TSCL_TRACE
+						bpred_tscl_trace("FWD_CHOICE addr=0x%08x source=%s tage_match=%d loop_match=%d llbt_match=%d sum=%d invert=%d valid=%d value=%d final=%d",
+							(unsigned int)fbaddr,
+							loop_match ? "LOOP" : (llbt_match>tage_match ? "LLBT" : (tage_match ? "TAGE" : "BIMOD")),
+							tage_match, loop_match, llbt_match, dir_update_ptr->fwd_dir.sum, invert, have_fwd_valid_outcome, fwd_valid_outcome, dir_update_ptr->fwd_tage_pred);
+#endif
 					}
 				}
 			}
@@ -1883,14 +2188,14 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 				}
 				break;
 				
-			case BPredTSBP:   
+			case BPredTSBP:
 				if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND)) {
 					dir_update_ptr->rev_pdir1 = bpred_dir_lookup(pred, pred->fwd_dirpred.twolev,  rbaddr, 1, frmt);  //get 2level base outcome prediction
-					
+
 					int key = key_from_features (pred->fwd_dirpred.twolev, rbaddr); // Get unmasked key from GHR and PC
-					
+
 					key = key & (pred->fwd_dirpred.tsbp->ts.head_table_size - 1); // mask key based on predictor table size
-					
+
 					/* incr head but prevent from going out of bounds*/
 					if (pred->fwd_dirpred.tsbp->ts.head >= pred->fwd_dirpred.tsbp->ts.correctness_width) {
 						pred->fwd_dirpred.tsbp->ts.head = 0;
@@ -1899,15 +2204,15 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 					}
 
 					/*if in replay mode and corretness buffer head indicates base predictor mistake*/
-					if(pred->fwd_dirpred.tsbp->ts.replay 
-						&& pred->fwd_dirpred.tsbp->ts.enabled 
+					if(pred->fwd_dirpred.tsbp->ts.replay
+						&& pred->fwd_dirpred.tsbp->ts.enabled
 						&& (pred->fwd_dirpred.tsbp->ts.correctness_buffer[pred->fwd_dirpred.tsbp->ts.head] == 0)) {
-						invert = TRUE; 
+						rev_invert = TRUE;
 					}
 				}
 				break;
-				
-			case BPredCHBP:   
+
+			case BPredCHBP:
 				if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND)) {
 					dir_update_ptr->rev_pdir1 = bpred_dir_lookup(pred, pred->fwd_dirpred.twolev,  rbaddr, 1, frmt);  //get 2level base outcome prediction
 					
@@ -1916,15 +2221,15 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 					key = key & (pred->fwd_dirpred.chbp->chbp.cht_size - 1); // mask key based on predictor table size
 
 					/*if enabled, replay bit set, correctness bits is 0, and src_pc matches rbaddr predictor is inverted*/
-					if (pred->fwd_dirpred.chbp->chbp.enabled 
+					if (pred->fwd_dirpred.chbp->chbp.enabled
 						&& pred->fwd_dirpred.chbp->chbp.cht_replay[key] 				// Only perform correction if replay is on
 						&& !pred->fwd_dirpred.chbp->chbp.cht_correct[key] 			// Check for past correctness history
 						&& (pred->fwd_dirpred.chbp->chbp.cht_spc[key] == rbaddr)) { 	// Check stored source pc is same as rbaddr
-						invert = TRUE; 
+						rev_invert = TRUE;
 					}
 				}
 				break;
-				
+
 			case BPred2Level:
 			case BPredOB:
 			case BPredOHT:
@@ -1933,40 +2238,51 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 			case BPredLLBP:
 			case BPred2bit:
 				if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND)) {
-					//Check if any valid past outcome results
-					if (((pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||(pred->class==BPredOB)) &&
-					(flow_mode && pred->ob.rv[pred->ob.beg])) {
-						//Check if OB has valid past outcome results
-						rev_valid_outcome = pred->ob.oc[pred->ob.beg];
-					} 
-					
-					if ((rev_valid_outcome==NULL) && (pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||
-					(pred->class==BPredOB)||(pred->class==BPredOHT)||(pred->class==BPred2Level)) {
-						if (flow_mode && pred->fhb[0].rv[pred->fhb[0].bot]) {
-							//Check if FHB has valid past outcome results
-							rev_valid_outcome = pred->fhb[0].o[pred->fhb[0].bot];
-						} 
-					}
-						
-					if ((rev_valid_outcome==NULL) && (pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||
-					(pred->class==BPredOHT)) {
-						//Check if OHT has valid past outcome results
-						int key;
-						
-						if ((pred->class==BPredMBP)||(pred->class==BPredOHT))
-							key = key_from_features (pred->fwd_dirpred.twolev, rbaddr); // Get unmasked key from GHR and PC
-						else 
-							key = key_from_features (pred->fwd_tage_dirpred[pred->tage_depth-1].twolev, rbaddr); // Get unmasked key from GHR and PC
-					
-						// FRMT was enabled so REV key needs to be exchanged for FWD key
-						//key = unmasked_key_from_frmt(pred, key);
-					
-						key = key & (pred->fwd_dirpred.oht->oht.size - 1); // mask key based on predictor table size
-						
-						if (flow_mode && pred->fwd_dirpred.oht->oht.rev_valid[key]) {
-							rev_valid_outcome = pred->fwd_dirpred.oht->oht.oc[key];
+					/* reverse-mode predictor-side history selection (FRMT/shared tables path) */
+					if (((pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||(pred->class==BPredOB))) {
+						pred->ob_rev_lookups++;
+						if (flow_mode && pred->ob.rv[pred->ob.beg]) {
+							pred->ob_rev_hits++;
+							rev_valid_outcome = pred->ob.oc[pred->ob.beg];
+					have_rev_valid_outcome = 1;
+							have_rev_valid_outcome = TRUE;
+							dir_update_ptr->rev_src.ob = TRUE;
 						}
-					} 
+					}
+					if (((pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||
+					     (pred->class==BPredOB)||(pred->class==BPredOHT)||(pred->class==BPred2Level))) {
+						pred->fhb_rev_lookups++;
+						if (have_rev_valid_outcome)
+							pred->fhb_rev_ob_bypassed++;
+						else if (flow_mode && pred->fhb[0].rv[pred->fhb[0].bot]) {
+							rev_valid_outcome = pred->fhb[0].o[pred->fhb[0].bot];
+					have_rev_valid_outcome = 1;
+							have_rev_valid_outcome = TRUE;
+							pred->fhb_rev_pred_uses++;
+							dir_update_ptr->rev_src.fhb = TRUE;
+						}
+					}
+					if (((pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||
+					     (pred->class==BPredOHT))) {
+						int key;
+						pred->oht_rev_lookups++;
+						if (have_rev_valid_outcome)
+							pred->fhb_rev_oht_bypassed++;
+						else {
+							if ((pred->class==BPredMBP)||(pred->class==BPredOHT))
+								key = key_from_features (pred->fwd_dirpred.twolev, rbaddr);
+							else
+								key = key_from_features (pred->fwd_tage_dirpred[pred->tage_depth-1].twolev, rbaddr);
+							key = key & (pred->fwd_dirpred.oht->oht.size - 1);
+							if (flow_mode && pred->fwd_dirpred.oht->oht.rev_valid[key]) {
+								pred->oht_rev_hits++;
+								rev_valid_outcome = pred->fwd_dirpred.oht->oht.oc[key];
+						have_rev_valid_outcome = 1;
+								have_rev_valid_outcome = TRUE;
+								dir_update_ptr->rev_src.oht = TRUE;
+							}
+						}
+					}
 						
 					if ((pred->class==BPredMBP)||(pred->class==BPredOB)||(pred->class==BPredOHT)||(pred->class==BPred2Level)) {
 						dir_update_ptr->rev_pdir1 = bpred_dir_lookup(pred, pred->fwd_dirpred.twolev, rbaddr, 1, frmt);
@@ -1979,16 +2295,16 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 						bimod = bpred_dir_lookup(pred, pred->fwd_dirpred.bimod, rbaddr, 1, frmt);
 						
 						if ((pred->class==BPredTSCL)||(pred->class==BPredLLBP)) {
-							dir_update_ptr->fwd_dir.sum = 0;
-							
+							dir_update_ptr->rev_dir.sum = 0;
+
 							if (pred->class==BPredLLBP) {
 								for (int i = pred->tage_depth-1; i >= 1; i--) {
 									// Get LLBT tag and compare to current tag
 									int llbt_key = key_from_features (pred->fwd_pb_dirpred[i].twolev, rbaddr); // Get unmasked key from GHR and PC
-									
+
 									// LLBP is indexed by RCR CCID!
 									// If matched unmasked TAGE key, set tage pointer and note it and hist length
-									if (llbt_key==pred->fwd_pb_dirpred[i].twolev->config.two.tag[pred->rcr.ccid] && 
+									if (llbt_key==pred->fwd_pb_dirpred[i].twolev->config.two.tag[pred->rcr.ccid] &&
 									pred->rcr.ccid==pred->fwd_pb_dirpred[i].twolev->config.two.context[pred->rcr.ccid]) {
 										llbt = bpred_dir_lookup(pred, pred->fwd_pb_dirpred[i].twolev, rbaddr, 1, frmt);
 										llbt_match = pred->fwd_pb_dirpred[i].twolev->config.two.hist_length[pred->rcr.ccid];
@@ -2002,6 +2318,9 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 								int tage_key = key_from_features (pred->fwd_tage_dirpred[i].twolev, rbaddr); // Get unmasked key from GHR and PC
 								int masked_tage_key = tage_key & (pred->fwd_tage_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
 								
+								#if BPRED_TSCL_TRACE
+								bpred_tscl_trace("LOOKUP_FRMT_REV_TAGE depth=%d addr=0x%08x key=%d idx=%d comptag=%d storedtag=%d", i, (unsigned int)rbaddr, tage_key, masked_tage_key, tage_key, pred->fwd_tage_dirpred[i].twolev->config.two.tag[masked_tage_key]);
+								#endif
 								// If matched unmasked TAGE key, set tage pointer
 								if (tage_key==pred->fwd_tage_dirpred[i].twolev->config.two.tag[masked_tage_key]) {
 									tage = bpred_dir_lookup(pred, pred->fwd_tage_dirpred[i].twolev, rbaddr, 1, frmt);
@@ -2013,25 +2332,43 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 							for (int i = 1; i < pred->tage_depth; i++) {
 								int sc_key = key_from_features (pred->fwd_sc_dirpred[i].twolev, rbaddr); // Get unmasked key from GHR and PC
 								int masked_sc_key = sc_key & (pred->fwd_sc_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
-								
+
+								#if BPRED_TSCL_TRACE
+								bpred_tscl_trace("LOOKUP_FRMT_REV_SC depth=%d addr=0x%08x key=%d idx=%d comptag=%d storedtag=%d ctr=%d", i, (unsigned int)rbaddr, sc_key, masked_sc_key, sc_key, pred->fwd_sc_dirpred[i].twolev->config.two.tag[masked_sc_key], pred->fwd_sc_dirpred[i].twolev->config.two.l2table[masked_sc_key]);
+								#endif
 								if (sc_key==pred->fwd_sc_dirpred[i].twolev->config.two.tag[masked_sc_key]) {
-									dir_update_ptr->fwd_dir.sum = dir_update_ptr->fwd_dir.sum + (pred->fwd_sc_dirpred[i].twolev->config.two.l2table[masked_sc_key] >= 2); 
+									dir_update_ptr->rev_dir.sum = dir_update_ptr->rev_dir.sum + (pred->fwd_sc_dirpred[i].twolev->config.two.l2table[masked_sc_key] >= 2);
 								}
 							}
-							
+
 							// Get loop tag and compare to current tag
+							pred->loop_rev_lookups++;
 							int loop_key = key_from_features (pred->fwd_loop_dirpred.twolev, rbaddr); // Get unmasked key from GHR and PC
-							int masked_loop_key = loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l1size - 1); // mask key based on predictor table size
+							int masked_loop_key = loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
 							
+							#if BPRED_TSCL_TRACE
+							bpred_tscl_trace("LOOKUP_FRMT_REV_LOOP addr=0x%08x key=%d idx=%d comptag=%d storedtag=%d ctr=%d thr=%d", (unsigned int)rbaddr, loop_key, masked_loop_key, loop_key, pred->fwd_loop_dirpred.twolev->config.two.tag[masked_loop_key], pred->fwd_loop_dirpred.twolev->config.two.l2table[masked_loop_key], pred->fwd_loop_dirpred.twolev->config.two.loop_threshold);
+							#endif
 							if (loop_key==pred->fwd_loop_dirpred.twolev->config.two.tag[masked_loop_key]) {
 								loop = bpred_dir_lookup(pred, pred->fwd_loop_dirpred.twolev, rbaddr, 1, frmt);
-								
-								if (*loop >= pred->fwd_loop_dirpred.twolev->config.two.threshold)
+
+								if (*loop >= pred->fwd_loop_dirpred.twolev->config.two.loop_threshold) {
 									loop_match = 1;
+									pred->loop_rev_hits++;
+									dir_update_ptr->rev_src.loop = TRUE;
+									/* In body: predict dir_bit. At exit: predict !dir_bit. */
+									{
+										int in_body = (pred->fwd_loop_dirpred.twolev->config.two.iter_c[masked_loop_key]
+											< pred->fwd_loop_dirpred.twolev->config.two.iter_p[masked_loop_key]);
+										int dir = pred->fwd_loop_dirpred.twolev->config.two.dir_bit[masked_loop_key];
+										dir_update_ptr->rev_loop_pred = in_body ? dir : !dir;
+									}
+								}
 							}
 						}
 						
 						if (loop_match) {
+							pred->loop_rev_chosen++;
 							dir_update_ptr->rev_pdir1 = loop;
 						} else {
 							if (llbt_match>tage_match) {
@@ -2044,17 +2381,19 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 							
 							// Check for statistical correction
 							if ((pred->class==BPredTSCL)||(pred->class==BPredLLBP)) {
-								dir_update_ptr->fwd_dir.sum = dir_update_ptr->fwd_dir.sum + (*(dir_update_ptr->rev_pdir1) >= 2);
-								
+								dir_update_ptr->rev_dir.sum = dir_update_ptr->rev_dir.sum + (*(dir_update_ptr->rev_pdir1) >= 2);
+
 								// invert on overthreshold summation
-								if (dir_update_ptr->fwd_dir.sum >= pred->fwd_sc_dirpred[pred->tage_depth-1].twolev->config.two.threshold)
-									invert = TRUE;
+								if (dir_update_ptr->rev_dir.sum >= pred->fwd_sc_dirpred[pred->tage_depth-1].twolev->config.two.sc_threshold)
+									rev_invert = TRUE;
 							}
 						}
-						
+
 						// Save TAGE prediction as a valid outcome could have been used.
 						if ((pred->class==BPredTSCL)||(pred->class==BPredLLBP)) {
-							dir_update_ptr->fwd_tage_pred = (*(dir_update_ptr->rev_pdir1) >= 2);
+							dir_update_ptr->fwd_tage_pred = loop_match
+								? dir_update_ptr->rev_loop_pred
+								: (*(dir_update_ptr->rev_pdir1) >= 2);
 						}
 					}
 				}
@@ -2114,10 +2453,10 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 					}
 
 					/*if in replay mode and corretness buffer head indicates base predictor mistake*/
-					if(pred->rev_dirpred.tsbp->ts.replay 
-						&& pred->rev_dirpred.tsbp->ts.enabled 
+					if(pred->rev_dirpred.tsbp->ts.replay
+						&& pred->rev_dirpred.tsbp->ts.enabled
 						&& (pred->rev_dirpred.tsbp->ts.correctness_buffer[pred->rev_dirpred.tsbp->ts.head] == 0)) {
-						invert = TRUE; 
+						rev_invert = TRUE;
 					}
 				}
 				break;
@@ -2131,11 +2470,11 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 					key = key & (pred->rev_dirpred.chbp->chbp.cht_size - 1); // mask key based on predictor table size
 
 					/*if enabled, replay bit set, correctness bits is 0, and src_pc matches rbaddr predictor is inverted*/
-					if (pred->rev_dirpred.chbp->chbp.enabled 
+					if (pred->rev_dirpred.chbp->chbp.enabled
 						&& pred->rev_dirpred.chbp->chbp.cht_replay[key] 				// Only perform correction if replay is on
 						&& !pred->rev_dirpred.chbp->chbp.cht_correct[key] 			// Check for past correctness history
 						&& (pred->rev_dirpred.chbp->chbp.cht_spc[key] == rbaddr)) { 	// Check stored source pc is same as rbaddr
-						invert = TRUE; 
+						rev_invert = TRUE;
 					}
 				}
 				break;
@@ -2148,37 +2487,50 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 			case BPredLLBP:
 			case BPred2bit:
 				if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND)) {
-					//Check if any valid past outcome results
-					if (((pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||(pred->class==BPredOB))&&
-					(flow_mode && pred->ob.rv[pred->ob.beg])) {
-						//Check if OB has valid past outcome results
-						rev_valid_outcome = pred->ob.oc[pred->ob.beg];
-					} 
-					
-					if ((rev_valid_outcome==NULL) && ((pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||
-					(pred->class==BPredOB)||(pred->class==BPredOHT)||(pred->class==BPred2Level))) {
-						if (flow_mode && pred->fhb[0].rv[pred->fhb[0].bot]) {
-							//Check if FHB has valid past outcome results
+					/* reverse-mode predictor-side history selection */
+					if (((pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||(pred->class==BPredOB))) {
+						pred->ob_rev_lookups++;
+						if (flow_mode && pred->ob.rv[pred->ob.beg]) {
+							pred->ob_rev_hits++;
+							rev_valid_outcome = pred->ob.oc[pred->ob.beg];
+					have_rev_valid_outcome = 1;
+							have_rev_valid_outcome = TRUE;
+							dir_update_ptr->rev_src.ob = TRUE;
+						}
+					}
+					if (((pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||
+					     (pred->class==BPredOB)||(pred->class==BPredOHT)||(pred->class==BPred2Level))) {
+						pred->fhb_rev_lookups++;
+						if (have_rev_valid_outcome)
+							pred->fhb_rev_ob_bypassed++;
+						else if (flow_mode && pred->fhb[0].rv[pred->fhb[0].bot]) {
 							rev_valid_outcome = pred->fhb[0].o[pred->fhb[0].bot];
+					have_rev_valid_outcome = 1;
+							have_rev_valid_outcome = TRUE;
+							pred->fhb_rev_pred_uses++;
+							dir_update_ptr->rev_src.fhb = TRUE;
 						}
-					} 
-					
-					if ((rev_valid_outcome==NULL) && (pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||
-					(pred->class==BPredOHT)) {
-						//Check if OHT has valid past outcome results
+					}
+					if (((pred->class==BPredMBP)||(pred->class==BPredTSCL)||(pred->class==BPredLLBP)||
+					     (pred->class==BPredOHT))) {
 						int key ;
-						
-						if ((pred->class==BPredMBP)||(pred->class==BPredOHT))
-							key = key_from_features (pred->rev_dirpred.twolev, rbaddr); // Get unmasked key from GHR and PC
-						else 
-							key = key_from_features (pred->rev_tage_dirpred[pred->tage_depth-1].twolev, rbaddr); // Get unmasked key from GHR and PC
-					
-						key = key & (pred->rev_dirpred.oht->oht.size - 1); // mask key based on predictor table size
-						
-						if (flow_mode && pred->rev_dirpred.oht->oht.rev_valid[key]) {
-							rev_valid_outcome = pred->rev_dirpred.oht->oht.oc[key];
+						pred->oht_rev_lookups++;
+						if (have_rev_valid_outcome)
+							pred->fhb_rev_oht_bypassed++;
+						else {
+							if ((pred->class==BPredMBP)||(pred->class==BPredOHT))
+								key = key_from_features (pred->rev_dirpred.twolev, rbaddr);
+							else 
+								key = key_from_features (pred->rev_tage_dirpred[pred->tage_depth-1].twolev, rbaddr);
+							key = key & (pred->rev_dirpred.oht->oht.size - 1);
+							if (flow_mode && pred->rev_dirpred.oht->oht.rev_valid[key]) {
+								pred->oht_rev_hits++;
+								rev_valid_outcome = pred->rev_dirpred.oht->oht.oc[key];
+								have_rev_valid_outcome = TRUE;
+								dir_update_ptr->rev_src.oht = TRUE;
+							}
 						}
-					} 
+					}
 						
 					if ((pred->class==BPredMBP)||(pred->class==BPredOB)||(pred->class==BPredOHT)||(pred->class==BPred2Level)) {
 						dir_update_ptr->rev_pdir1 = bpred_dir_lookup(pred, pred->rev_dirpred.twolev, rbaddr, 1, frmt);
@@ -2214,6 +2566,9 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 								int tage_key = key_from_features (pred->rev_tage_dirpred[i].twolev, rbaddr); // Get unmasked key from GHR and PC
 								int masked_tage_key = tage_key & (pred->rev_tage_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
 								
+								#if BPRED_TSCL_TRACE
+								bpred_tscl_trace("LOOKUP_REV_TAGE depth=%d addr=0x%08x key=%d idx=%d comptag=%d storedtag=%d", i, (unsigned int)rbaddr, tage_key, masked_tage_key, tage_key, pred->rev_tage_dirpred[i].twolev->config.two.tag[masked_tage_key]);
+								#endif
 								// If matched unmasked TAGE key, set tage pointer
 								if (tage_key==pred->rev_tage_dirpred[i].twolev->config.two.tag[masked_tage_key]) {
 									tage = bpred_dir_lookup(pred, pred->rev_tage_dirpred[i].twolev, rbaddr, 1, frmt);
@@ -2225,25 +2580,43 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 							for (int i = 1; i < pred->tage_depth; i++) {
 								int sc_key = key_from_features (pred->rev_sc_dirpred[i].twolev, rbaddr); // Get unmasked key from GHR and PC
 								int masked_sc_key = sc_key & (pred->rev_sc_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
-								
+
+								#if BPRED_TSCL_TRACE
+								bpred_tscl_trace("LOOKUP_REV_SC depth=%d addr=0x%08x key=%d idx=%d comptag=%d storedtag=%d ctr=%d", i, (unsigned int)rbaddr, sc_key, masked_sc_key, sc_key, pred->rev_sc_dirpred[i].twolev->config.two.tag[masked_sc_key], pred->rev_sc_dirpred[i].twolev->config.two.l2table[masked_sc_key]);
+								#endif
 								if (sc_key==pred->rev_sc_dirpred[i].twolev->config.two.tag[masked_sc_key]) {
-									dir_update_ptr->rev_dir.sum = dir_update_ptr->rev_dir.sum + (pred->rev_sc_dirpred[i].twolev->config.two.l2table[masked_sc_key] >= 2); 
+									dir_update_ptr->rev_dir.sum = dir_update_ptr->rev_dir.sum + (pred->rev_sc_dirpred[i].twolev->config.two.l2table[masked_sc_key] >= 2);
 								}
 							}
 							
 							// Get loop tag and compare to current tag
+							pred->loop_rev_lookups++;
 							int loop_key = key_from_features (pred->rev_loop_dirpred.twolev, rbaddr); // Get unmasked key from GHR and PC
-							int masked_loop_key = loop_key & (pred->rev_loop_dirpred.twolev->config.two.l1size - 1); // mask key based on predictor table size
-							
+							int masked_loop_key = loop_key & (pred->rev_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
+
+							#if BPRED_TSCL_TRACE
+							bpred_tscl_trace("LOOKUP_REV_LOOP addr=0x%08x key=%d idx=%d comptag=%d storedtag=%d ctr=%d thr=%d", (unsigned int)rbaddr, loop_key, masked_loop_key, loop_key, pred->rev_loop_dirpred.twolev->config.two.tag[masked_loop_key], pred->rev_loop_dirpred.twolev->config.two.l2table[masked_loop_key], pred->rev_loop_dirpred.twolev->config.two.loop_threshold);
+							#endif
 							if (loop_key==pred->rev_loop_dirpred.twolev->config.two.tag[masked_loop_key]) {
 								loop = bpred_dir_lookup(pred, pred->rev_loop_dirpred.twolev, rbaddr, 1, frmt);
-								
-								if (*loop >= pred->rev_loop_dirpred.twolev->config.two.threshold)
+
+								if (*loop >= pred->rev_loop_dirpred.twolev->config.two.loop_threshold) {
 									loop_match = 1;
+									pred->loop_rev_hits++;
+									dir_update_ptr->rev_src.loop = TRUE;
+									/* In body: predict dir_bit. At exit: predict !dir_bit. */
+									{
+										int in_body = (pred->rev_loop_dirpred.twolev->config.two.iter_c[masked_loop_key]
+											< pred->rev_loop_dirpred.twolev->config.two.iter_p[masked_loop_key]);
+										int dir = pred->rev_loop_dirpred.twolev->config.two.dir_bit[masked_loop_key];
+										dir_update_ptr->rev_loop_pred = in_body ? dir : !dir;
+									}
+								}
 							}
 						}
 						
 						if (loop_match) {
+							pred->loop_rev_chosen++;
 							dir_update_ptr->rev_pdir1 = loop;
 						} else {
 							if (llbt_match>tage_match) {
@@ -2257,16 +2630,24 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 							// Check for statistical correction
 							if ((pred->class==BPredTSCL)||(pred->class==BPredLLBP)) {
 								dir_update_ptr->rev_dir.sum = dir_update_ptr->rev_dir.sum + (*(dir_update_ptr->rev_pdir1) >= 2);
-								
+
 								// invert on overthreshold summation
-								if (dir_update_ptr->rev_dir.sum >= pred->rev_sc_dirpred[pred->tage_depth-1].twolev->config.two.threshold)
-									invert = TRUE;
+								if (dir_update_ptr->rev_dir.sum >= pred->rev_sc_dirpred[pred->tage_depth-1].twolev->config.two.sc_threshold)
+									rev_invert = TRUE;
 							}
 						}
-						
+
 						// Save TAGE prediction as a valid outcome could have been used.
 						if ((pred->class==BPredTSCL)||(pred->class==BPredLLBP)) {
-							dir_update_ptr->rev_tage_pred = (*(dir_update_ptr->rev_pdir1) >= 2);
+							dir_update_ptr->rev_tage_match = tage_match;
+						dir_update_ptr->rev_loop_match = loop_match;
+						dir_update_ptr->rev_llbt_match = llbt_match;
+						dir_update_ptr->rev_invert = rev_invert;
+						dir_update_ptr->rev_valid_outcome = rev_valid_outcome;
+						dir_update_ptr->rev_have_valid_outcome = have_rev_valid_outcome;
+						dir_update_ptr->rev_tage_pred = loop_match
+							? dir_update_ptr->rev_loop_pred
+							: (*(dir_update_ptr->rev_pdir1) >= 2);
 						}
 					}
 				}
@@ -2394,23 +2775,27 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 	/* otherwise we have a conditional branch */
 	if (!flow_mode) {
 		// There was a fwd valid outcome
-		if (fwd_valid_outcome != NULL) {
+		if (have_fwd_valid_outcome) {
 			prediction = fwd_valid_outcome;
 		} else {
-			prediction = (*(dir_update_ptr->fwd_pdir1) >= 2);
-			
+			prediction = dir_update_ptr->fwd_loop_match
+				? dir_update_ptr->fwd_loop_pred
+				: (*(dir_update_ptr->fwd_pdir1) >= 2);
+
 			if (invert) {
 				prediction = !prediction;
 			}
 		}
 	} else {
 		// There was a rev valid outcome
-		if (rev_valid_outcome != NULL) {
+		if (have_rev_valid_outcome) {
 			prediction = rev_valid_outcome;
 		} else {
-			prediction = (*(dir_update_ptr->rev_pdir1) >= 2);
-			
-			if (invert) {
+			prediction = dir_update_ptr->rev_loop_match
+				? dir_update_ptr->rev_loop_pred
+				: (*(dir_update_ptr->rev_pdir1) >= 2);
+
+			if (rev_invert) {
 				prediction = !prediction;
 			}
 		}
@@ -2632,28 +3017,48 @@ void bpred_loop_update(struct bpred_dir_t *pred_dir,	/* branch dir predictor ins
 			pred_dir->config.two.iter_p[loop_key] = pred_dir->config.two.iter_c[loop_key];
 			pred_dir->config.two.iter_c[loop_key] = 0;
 		}
-		
-		// hit the same number of past and current iterations
-		if (pred_dir->config.two.iter_c[loop_key]==pred_dir->config.two.iter_p[loop_key]) {
+
+		// hit the same number of past and current iterations; require iter_c > 0 so the
+		// degenerate iter_c==iter_p==0 startup case (sequence of not-taken branches on a fresh
+		// entry) does not falsely saturate confidence.
+		if (pred_dir->config.two.iter_c[loop_key]==pred_dir->config.two.iter_p[loop_key]
+				&& pred_dir->config.two.iter_c[loop_key] > 0) {
 			if (pred_dir->config.two.l2table[loop_key] < 3)
 				pred_dir->config.two.l2table[loop_key]++; // incr counter
+			// Refresh body direction. iter_c++ landed us on iter_p, so this taken value is the body direction.
+			pred_dir->config.two.dir_bit[loop_key] = !!taken;
+#if BPRED_TSCL_TRACE
+			bpred_tscl_trace("LOOP_CONF_INC idx=%d iter_c=%d iter_p=%d taken=%d ctr=%d dir=%d",
+				loop_key,
+				pred_dir->config.two.iter_c[loop_key],
+				pred_dir->config.two.iter_p[loop_key],
+				taken,
+				pred_dir->config.two.l2table[loop_key],
+				pred_dir->config.two.dir_bit[loop_key]);
+#endif
 		}
-		
+
 		if (pred_dir->config.two.use[loop_key] < 3)
 			pred_dir->config.two.use[loop_key]++;
 	} else if (unmasked_loop_key!=pred_dir->config.two.tag[loop_key]) {
 		if (pred_dir->config.two.use[loop_key])
 			pred_dir->config.two.use[loop_key]--;
 	}
-	
+
 	if (!pred_dir->config.two.use[loop_key]) {
 		pred_dir->config.two.l2table[loop_key] = 0; //strongly unset counter
 		pred_dir->config.two.tag[loop_key] = unmasked_loop_key; //overwrite tag
+		pred_dir->config.two.iter_c[loop_key] = 0; //fresh iter state for new entry
+		pred_dir->config.two.iter_p[loop_key] = 0;
+		pred_dir->config.two.dir_bit[loop_key] = !!taken; //initial guess for body direction
+#if BPRED_TSCL_TRACE
+	bpred_tscl_trace("UPDATE_LOOP_TAG key=%d idx=%d newtag=%d taken=%d", unmasked_loop_key, loop_key, pred_dir->config.two.tag[loop_key], taken);
+#endif
 		pred_dir->config.two.use[loop_key] = 0; //set strongly not useful
 	}
 }
 
-// Update SC counters based on correctness 
+// Update SC counters based on correctness
 void bpred_sc_update(struct bpred_dir_t *pred_dir,	/* branch dir predictor inst */
 	int sc_key,
 	int unmasked_sc_key,
@@ -2661,24 +3066,35 @@ void bpred_sc_update(struct bpred_dir_t *pred_dir,	/* branch dir predictor inst 
 	int und,			// under threshold flag
 	int thu)			// threshold update
 {
-	//correct = (!correct ^ und);		// Invert correction if over threshold to get tage correction
-	
+	/* This implementation keeps tags on SC entries (a deviation from Seznec's tag-less SC).
+	 * Empirically, removing the tag gating exposes severe aliasing: many distinct branches map
+	 * to the same SC bucket and the aggregate counter no longer represents any single branch's
+	 * bias. Keeping tags + symmetric training was the best-measured combination on this codebase.
+	 * Symmetric training:
+	 *   case A (!correct && und):  prediction wrong, SC didn't invert  -> counter ++.
+	 *   case B (correct && !und):  prediction correct, SC inverted     -> counter --. */
 	if (unmasked_sc_key==pred_dir->config.two.tag[sc_key]) {
 		if (!correct && und) {
 			if (pred_dir->config.two.l2table[sc_key] < 3)
 				pred_dir->config.two.l2table[sc_key]++;
+		} else if (correct && !und) {
+			if (pred_dir->config.two.l2table[sc_key] > 0)
+				pred_dir->config.two.l2table[sc_key]--;
 		}
-		
+
 		if (pred_dir->config.two.use[sc_key] < 3)
 			pred_dir->config.two.use[sc_key]++;
 	} else if (unmasked_sc_key!=pred_dir->config.two.tag[sc_key]) {
 		if (pred_dir->config.two.use[sc_key])
 			pred_dir->config.two.use[sc_key]--;
 	}
-	
+
 	if (!pred_dir->config.two.use[sc_key]) {
 		pred_dir->config.two.l2table[sc_key] = 0; //strongly don't set counter
 		pred_dir->config.two.tag[sc_key] = unmasked_sc_key; //overwrite tag
+#if BPRED_TSCL_TRACE
+	bpred_tscl_trace("UPDATE_SC_TAG key=%d idx=%d newtag=%d correct=%d und=%d thu=%d", unmasked_sc_key, sc_key, pred_dir->config.two.tag[sc_key], correct, und, thu);
+#endif
 		pred_dir->config.two.use[sc_key] = 2; //set weakly useful
 	}
 }
@@ -2846,19 +3262,22 @@ void bpred_tage_update (struct bpred_t *pred,	/* branch predictor inst */
 			tage_key = unmasked_tage_key & (pred_dir->config.two.l2size - 1); // mask key based on predictor table size
 			
 			if (*replacement_size >= *replacement_max) {
-				*replacement_max++;
+				(*replacement_max)++;
 				*tage_replacement_tags = (int*)realloc(*tage_replacement_tags, *replacement_max * sizeof(int));
 				*tage_replacement_counters = (int*)realloc(*tage_replacement_counters, *replacement_max * sizeof(int));
 				*tage_replacement_lengths = (int*)realloc(*tage_replacement_lengths, *replacement_max * sizeof(int));
 			}
-			
-			*tage_replacement_counters = pred_dir->config.two.l2table[tage_key]; //copy current counter
-			*tage_replacement_tags = pred_dir->config.two.tag[tage_key]; //copy current tag
-			*tage_replacement_lengths = pred_dir->config.two.shift_width; //copy hist_length
-			*replacement_size++;
+
+			(*tage_replacement_counters)[*replacement_size] = pred_dir->config.two.l2table[tage_key]; //copy current counter
+			(*tage_replacement_tags)[*replacement_size] = pred_dir->config.two.tag[tage_key]; //copy current tag
+			(*tage_replacement_lengths)[*replacement_size] = pred_dir->config.two.shift_width; //copy hist_length
+			(*replacement_size)++;
 			
 			pred_dir->config.two.l2table[tage_key] = 2; //weakly set counter
 			pred_dir->config.two.tag[tage_key] = unmasked_tage_key; //overwrite tag
+#if BPRED_TSCL_TRACE
+	bpred_tscl_trace("UPDATE_TAGE_TAG key=%d idx=%d newtag=%d taken=%d", unmasked_tage_key, tage_key, pred_dir->config.two.tag[tage_key], taken);
+#endif
 			pred_dir->config.two.use[tage_key] = 0; //strongly not useful
 		} else {	// If no options exist, decrement usefulness of all Tj i < j < M
 			for (int i = matching_table + 1; i < pred->tage_depth; i ++) {
@@ -3169,6 +3588,18 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 		}
 	}
 
+	if (!flow_mode) {
+		if (correct) {
+			if (dir_update_ptr->fwd_src.ob) pred->ob_fwd_correct++;
+			if (dir_update_ptr->fwd_src.oht) pred->oht_fwd_correct++;
+		} 
+	} else {
+		if (correct) {
+			if (dir_update_ptr->rev_src.ob) pred->ob_rev_correct++;
+			if (dir_update_ptr->rev_src.oht) pred->oht_rev_correct++;
+		}
+	}
+
 	/* Can exit now if this is a stateless predictor */
 	if (pred->class == BPredNotTaken || pred->class == BPredTaken)
 		return;
@@ -3309,6 +3740,8 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 			pred->fhb[0].und_out = pred->fhb[0].und[pred->fhb[0].top];
 			pred->fhb[0].thu_out = pred->fhb[0].thu[pred->fhb[0].top];
 			pred->fhb[0].key_out = pred->fhb[0].key[pred->fhb[0].top];
+			if (pred->fhb[0].fv_out) pred->fhb_fwd_valid_out++;
+			if (pred->fhb[0].rv_out) pred->fhb_rev_valid_out++;
 			
 			if (pred->fhb[0].top > 0) {
 				pred->fhb[0].top--;
@@ -3322,12 +3755,6 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 				pred->fhb[0].bot = pred->fhb[0].size - 1;
 			}
 			
-			if (pbtb) {
-				pred->fhb[0].addr[pred->fhb[0].bot] = pbtb->target;
-			} else {
-				pred->fhb[0].addr[pred->fhb[0].bot] = NULL;
-			}
-			
 			pred->fhb[0].addr[pred->fhb[0].bot] = rbaddr;
 			pred->fhb[0].fv[pred->fhb[0].bot] = 0;
 			pred->fhb[0].rv[pred->fhb[0].bot] = 1;
@@ -3339,9 +3766,10 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 				pred->fhb[0].correct[pred->fhb[0].bot] = correct;
 			}
 			if (pred->class==BPredLLBP||pred->class==BPredTSCL)
-				pred->fhb[0].und[pred->fhb[0].bot] = (dir_update_ptr->fwd_dir.sum < pred->fwd_sc_dirpred[1].twolev->config.two.threshold);
+				pred->fhb[0].und[pred->fhb[0].bot] = (dir_update_ptr->fwd_dir.sum < pred->fwd_sc_dirpred[1].twolev->config.two.sc_threshold);
 			pred->fhb[0].thu[pred->fhb[0].bot] = 0;
 			pred->fhb[0].key[pred->fhb[0].bot] = fwd_key;
+			pred->fhb_rev_writes++;
 		} else {
 			pred->fhb[0].addr_out = pred->fhb[0].addr[pred->fhb[0].bot];
 			pred->fhb[0].fv_out = pred->fhb[0].fv[pred->fhb[0].bot];
@@ -3351,6 +3779,8 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 			pred->fhb[0].und_out = pred->fhb[0].und[pred->fhb[0].bot];
 			pred->fhb[0].thu_out = pred->fhb[0].thu[pred->fhb[0].bot];
 			pred->fhb[0].key_out = pred->fhb[0].key[pred->fhb[0].bot];
+			if (pred->fhb[0].fv_out) pred->fhb_fwd_valid_out++;
+			if (pred->fhb[0].rv_out) pred->fhb_rev_valid_out++;
 			
 			if (pred->fhb[0].top < (pred->fhb[0].size - 1)) {
 				pred->fhb[0].top++;
@@ -3364,35 +3794,32 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 				pred->fhb[0].bot = 0;
 			}
 			
-			if (pbtb) {
-				pred->fhb[0].addr[pred->fhb[0].top] = pbtb->addr;
-			} else {
-				pred->fhb[0].addr[pred->fhb[0].top] = NULL;
-			}
-			
 			pred->fhb[0].addr[pred->fhb[0].top] = fbaddr;
 			pred->fhb[0].fv[pred->fhb[0].top] = 1;
 			pred->fhb[0].rv[pred->fhb[0].top] = 0;
 			pred->fhb[0].o[pred->fhb[0].top] = taken;
-			// For TSCL/LLBP correctness is determined by TAGE prediction since a valid outcome could've been used
+			// For TSCL/LLBP correctness is determined by TAGE prediction since a valid outcome could've been used.
+			// All writes in this FWD-mode block use [top] — entries roll forward and are later consumed
+			// at [bot] by FWD-mode FHB-driven REV-future TAGE/SC updates.
 			if ((pred->class==BPredTSCL)||(pred->class==BPredLLBP)) {
 				if (frmt) {
-					pred->fhb[0].correct[pred->fhb[0].bot] = (dir_update_ptr->fwd_tage_pred==taken);
+					pred->fhb[0].correct[pred->fhb[0].top] = (dir_update_ptr->fwd_tage_pred==taken);
 				} else {
-					pred->fhb[0].correct[pred->fhb[0].bot] = (dir_update_ptr->rev_tage_pred==taken);
+					pred->fhb[0].correct[pred->fhb[0].top] = (dir_update_ptr->rev_tage_pred==taken);
 				}
 			} else {
 				pred->fhb[0].correct[pred->fhb[0].top] = correct;
 			}
 			if (pred->class==BPredLLBP||pred->class==BPredTSCL){
 				if (frmt)
-					pred->fhb[0].und[pred->fhb[0].top] = (dir_update_ptr->rev_dir.sum < pred->fwd_sc_dirpred[1].twolev->config.two.threshold);
+					pred->fhb[0].und[pred->fhb[0].top] = (dir_update_ptr->rev_dir.sum < pred->fwd_sc_dirpred[1].twolev->config.two.sc_threshold);
 				else 
-					pred->fhb[0].und[pred->fhb[0].top] = (dir_update_ptr->rev_dir.sum < pred->rev_sc_dirpred[1].twolev->config.two.threshold);
+					pred->fhb[0].und[pred->fhb[0].top] = (dir_update_ptr->rev_dir.sum < pred->rev_sc_dirpred[1].twolev->config.two.sc_threshold);
 			}
 			pred->fhb[0].thu[pred->fhb[0].top] = 0;
 			// FHB deals with unmasked keys!!!
 			pred->fhb[0].key[pred->fhb[0].top] = rev_key;
+			pred->fhb_fwd_writes++;
 		}
 		
 		//if (flow_mode && frmt)	// FRMT was enabled so REV ADDR needs to be exchanged for FWD ADDR
@@ -3694,6 +4121,7 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 		if (flow_mode) { // The full REV mode need to update both sides
 			// Checking against future fwd if valid fhb value and not FRMTs
 			if(pred->fhb[0].fv_out && !frmt) {		// don't update if FRMT set as this is now shared and update already occured
+				pred->fhb_fwd_update_uses++;
 				bpred_tage_update(
 					pred,
 					&replacement_size,
@@ -3744,6 +4172,9 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 			
 			// Checking against future rev if valid fhb value and not FRMTs
 			if(pred->fhb[0].rv_out && !frmt) {		// don't update if FRMT set as this is now shared and update already occured
+				pred->fhb_rev_update_uses++;
+				pred->sc_rev_updates++;
+				pred->fhb_rev_update_uses++;
 				bpred_tage_update(
 					pred,
 					&replacement_size,
@@ -3762,12 +4193,15 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 		}
 		
 		for (int i = 1; i < pred->tage_depth; i++) {
-			// Update history
-			shift_history_left(pred->fwd_tage_dirpred[i].twolev, fbaddr, taken);
-			
-			if (!frmt) {
-				// Update history
-				shift_history_left(pred->rev_tage_dirpred[i].twolev, rbaddr, taken);
+			// Update history. Direction matches flow_mode: FWD shifts left, REV shifts right (mirrors SC/Loop/bimod).
+			if (!flow_mode) {
+				shift_history_left(pred->fwd_tage_dirpred[i].twolev, fbaddr, taken);
+				if (!frmt)
+					shift_history_left(pred->rev_tage_dirpred[i].twolev, rbaddr, taken);
+			} else {
+				shift_history_right(pred->fwd_tage_dirpred[i].twolev, fbaddr, taken);
+				if (!frmt)
+					shift_history_right(pred->rev_tage_dirpred[i].twolev, rbaddr, taken);
 			}
 		}
 		
@@ -3794,14 +4228,14 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 				//unmasked_rev_sc_key = unmasked_key_from_frmt(pred, unmasked_rev_sc_key); // FRMT was enabled so REV key needs to be exchanged for FWD key
 				//unmasked_rev_future_sc_key = unmasked_key_from_frmt(pred, unmasked_rev_future_sc_key); // FRMT was enabled so REV key needs to be exchanged for FWD key
 				
-				rev_sc_key = unmasked_fwd_sc_key & (pred->fwd_sc_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
-				rev_future_sc_key = unmasked_fwd_future_sc_key & (pred->fwd_sc_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
+				rev_sc_key = unmasked_rev_sc_key & (pred->fwd_sc_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
+				rev_future_sc_key = unmasked_rev_future_sc_key & (pred->fwd_sc_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
 			} else {
 				unmasked_rev_sc_key = key_from_features (pred->rev_sc_dirpred[i].twolev, fbaddr); // Get unmasked key from GHR and PC
 				unmasked_rev_future_sc_key = key_from_features (pred->rev_sc_dirpred[i].twolev, pred->fhb[0].addr_out); // Get unmasked future key from GHR and PC
-				
-				rev_sc_key = unmasked_fwd_sc_key & (pred->rev_sc_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
-				rev_future_sc_key = unmasked_fwd_future_sc_key & (pred->rev_sc_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
+
+				rev_sc_key = unmasked_rev_sc_key & (pred->rev_sc_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
+				rev_future_sc_key = unmasked_rev_future_sc_key & (pred->rev_sc_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
 			}
 			
 			// If matched unmasked SC key, increment useful counter
@@ -3809,6 +4243,8 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 			if (flow_mode) { // The full REV mode need to update both sides
 				// Checking against future fwd if valid fhb value
 				if(pred->fhb[0].fv_out && !frmt) {	// don't update if FRMT set as this is now shared and update already occured
+				pred->fhb_fwd_update_uses++;
+				pred->sc_fwd_updates++;
 					bpred_sc_update(
 						pred->fwd_sc_dirpred[i].twolev,
 						fwd_future_sc_key,
@@ -3826,7 +4262,7 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 						rev_sc_key,
 						unmasked_rev_sc_key,
 						tage_correct,
-						(dir_update_ptr->rev_dir.sum < pred->rev_sc_dirpred[i].twolev->config.two.threshold),
+						(dir_update_ptr->rev_dir.sum < pred->rev_sc_dirpred[i].twolev->config.two.sc_threshold),
 						0
 					);
 					
@@ -3838,7 +4274,7 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 						rev_sc_key,
 						unmasked_rev_sc_key,
 						tage_correct,
-						(dir_update_ptr->rev_dir.sum < pred->fwd_sc_dirpred[i].twolev->config.two.threshold),
+						(dir_update_ptr->rev_dir.sum < pred->fwd_sc_dirpred[i].twolev->config.two.sc_threshold),
 						0
 					);
 				}
@@ -3852,12 +4288,14 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 					fwd_sc_key,
 					unmasked_fwd_sc_key,
 					tage_correct,
-					(dir_update_ptr->fwd_dir.sum < pred->fwd_sc_dirpred[i].twolev->config.two.threshold),
+					(dir_update_ptr->fwd_dir.sum < pred->fwd_sc_dirpred[i].twolev->config.two.sc_threshold),
 					0
 				);
 				
 				// Checking against future rev if valid fhb value
 				if(pred->fhb[0].rv_out && !frmt) {		// don't update if FRMT set as this is now shared and update already occured
+				pred->fhb_rev_update_uses++;
+				pred->fhb_rev_update_uses++;
 					// If not FRMT, using both sets of tables
 					bpred_sc_update(
 						pred->rev_sc_dirpred[i].twolev,
@@ -3890,29 +4328,30 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 		unmasked_fwd_loop_key = key_from_features (pred->fwd_loop_dirpred.twolev, fbaddr); // Get unmasked key from GHR and PC
 		unmasked_fwd_future_loop_key = key_from_features (pred->fwd_loop_dirpred.twolev, pred->fhb[0].addr_out); // Get unmasked future key from GHR and PC
 		
-		fwd_loop_key = unmasked_fwd_loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l1size - 1); // mask key based on predictor table size
-		fwd_future_loop_key = unmasked_fwd_future_loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l1size - 1); // mask key based on predictor table size
-		
+		fwd_loop_key = unmasked_fwd_loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
+		fwd_future_loop_key = unmasked_fwd_future_loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
+
 		if (frmt) {
 			unmasked_rev_loop_key = key_from_features (pred->fwd_loop_dirpred.twolev, fbaddr); // Get unmasked key from GHR and PC
 			unmasked_rev_future_loop_key = key_from_features (pred->fwd_loop_dirpred.twolev, pred->fhb[0].addr_out); // Get unmasked future key from GHR and PC
-			
+
 			//unmasked_rev_loop_key = unmasked_key_from_frmt(pred, unmasked_rev_loop_key); // FRMT was enabled so REV key needs to be exchanged for FWD key
 			//unmasked_rev_future_loop_key = unmasked_key_from_frmt(pred, unmasked_rev_future_loop_key); // FRMT was enabled so REV key needs to be exchanged for FWD key
-			
-			rev_loop_key = unmasked_fwd_loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l1size - 1); // mask key based on predictor table size
-			rev_future_loop_key = unmasked_fwd_future_loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l1size - 1); // mask key based on predictor table size
+
+			rev_loop_key = unmasked_rev_loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
+			rev_future_loop_key = unmasked_rev_future_loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
 		} else {
 			unmasked_rev_loop_key = key_from_features (pred->rev_loop_dirpred.twolev, fbaddr); // Get unmasked key from GHR and PC
 			unmasked_rev_future_loop_key = key_from_features (pred->rev_loop_dirpred.twolev, pred->fhb[0].addr_out); // Get unmasked future key from GHR and PC
-			
-			rev_loop_key = unmasked_fwd_loop_key & (pred->rev_loop_dirpred.twolev->config.two.l1size - 1); // mask key based on predictor table size
-			rev_future_loop_key = unmasked_fwd_future_loop_key & (pred->rev_loop_dirpred.twolev->config.two.l1size - 1); // mask key based on predictor table size
+
+			rev_loop_key = unmasked_rev_loop_key & (pred->rev_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
+			rev_future_loop_key = unmasked_rev_future_loop_key & (pred->rev_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
 		}
 			
 		if (flow_mode) { // The full REV mode need to update both sides
 			// Checking against future fwd if valid fhb value
 			if(pred->fhb[0].fv_out && !frmt) {	// don't update if FRMT set as this is now shared and update already occured
+				pred->fhb_fwd_update_uses++;
 				bpred_loop_update(
 					pred->fwd_loop_dirpred.twolev,
 					fwd_future_loop_key,
@@ -3954,6 +4393,8 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 			
 			// Checking against future rev if valid fhb value
 			if(pred->fhb[0].rv_out && !frmt) {		// don't update if FRMT set as this is now shared and update already occured
+				pred->fhb_rev_update_uses++;
+				pred->fhb_rev_update_uses++;
 				// If not FRMT, using both sets of tables
 				bpred_loop_update(
 					pred->rev_loop_dirpred.twolev,
@@ -4186,68 +4627,33 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 	
 	/* update dir_update_ptr state(s) (but not for jumps) */
 	if ((pred->class == BPredTSCL) || (pred->class == BPredLLBP)) {
-		// Need to update the base bimod when using TSCL or LLBP
+		// Update the bimod base predictor counter via bpred_dir_lookup so the access goes through
+		// the public API rather than direct config.bimod.table[BIMOD_HASH(...)] manipulation.
+		char *p;
 		if (frmt) {
-			if (flow_mode) {
-				// Only update REV table in REV mode with FRMT set
-				if (taken) {
-					if (pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, rbaddr)] < 3)
-						pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, rbaddr)]++;
-				} else { /* not taken */
-					if (pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, rbaddr)] > 0)
-						pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, rbaddr)]--;
-				}
-			} else {
-				// Only update FWD table in FWD mode with FRMT set
-				if (taken) {
-					if (pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, fbaddr)] < 3)
-						pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, fbaddr)]++;
-				} else { /* not taken */
-					if (pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, fbaddr)] > 0)
-						pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, fbaddr)]--;
-				}
-			}
+			// FRMT: rev tables don't exist physically, only fwd tables. Update only the side that matches flow_mode.
+			md_addr_t a = flow_mode ? rbaddr : fbaddr;
+			p = bpred_dir_lookup(pred, pred->fwd_dirpred.bimod, a, flow_mode, frmt);
+			if (taken) { if (*p < 3) (*p)++; } else { if (*p > 0) (*p)--; }
 		} else {
-			// Update both REV and FWD but depending on mode, addr is determined by FHB
-			if (flow_mode) {	// FWD is future
-				if (taken) {
-					if (pred->rev_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->rev_dirpred.bimod, rbaddr)] < 3)
-						pred->rev_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->rev_dirpred.bimod, rbaddr)]++;
-				} else { /* not taken */
-					if (pred->rev_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->rev_dirpred.bimod, rbaddr)] > 0)
-						pred->rev_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->rev_dirpred.bimod, rbaddr)]--;
-				}
-				
+			// no-FRMT: update current-direction's table with current outcome, and future-direction's table from FHB.
+			if (flow_mode) {	// REV mode: current update on rev_dirpred, future-fwd update from FHB
+				p = bpred_dir_lookup(pred, pred->rev_dirpred.bimod, rbaddr, 1, frmt);
+				if (taken) { if (*p < 3) (*p)++; } else { if (*p > 0) (*p)--; }
 				if (pred->fhb[0].fv_out) {
-					if (pred->fhb[0].o_out) {
-						if (pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, pred->fhb[0].addr_out)] < 3)
-							pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, pred->fhb[0].addr_out)]++;
-					} else { /* not taken */
-						if (pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, pred->fhb[0].addr_out)] > 0)
-							pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, pred->fhb[0].addr_out)]--;
-					}
+					p = bpred_dir_lookup(pred, pred->fwd_dirpred.bimod, pred->fhb[0].addr_out, 0, frmt);
+					if (pred->fhb[0].o_out) { if (*p < 3) (*p)++; } else { if (*p > 0) (*p)--; }
 				}
-			} else {	// REV is future
-				if (taken) {
-					if (pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, fbaddr)] < 3)
-						pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, fbaddr)]++;
-				} else { /* not taken */
-					if (pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, fbaddr)] > 0)
-						pred->fwd_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->fwd_dirpred.bimod, fbaddr)]--;
-				}
-				
+			} else {	// FWD mode: current update on fwd_dirpred, future-rev update from FHB
+				p = bpred_dir_lookup(pred, pred->fwd_dirpred.bimod, fbaddr, 0, frmt);
+				if (taken) { if (*p < 3) (*p)++; } else { if (*p > 0) (*p)--; }
 				if (pred->fhb[0].rv_out) {
-					if (pred->fhb[0].o_out) {
-						if (pred->rev_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->rev_dirpred.bimod, pred->fhb[0].addr_out)] < 3)
-							pred->rev_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->rev_dirpred.bimod, pred->fhb[0].addr_out)]++;
-					} else { /* not taken */
-						if (pred->rev_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->rev_dirpred.bimod, pred->fhb[0].addr_out)] > 0)
-							pred->rev_dirpred.bimod->config.bimod.table[BIMOD_HASH(pred->rev_dirpred.bimod, pred->fhb[0].addr_out)]--;
-					}
+					p = bpred_dir_lookup(pred, pred->rev_dirpred.bimod, pred->fhb[0].addr_out, 1, frmt);
+					if (pred->fhb[0].o_out) { if (*p < 3) (*p)++; } else { if (*p > 0) (*p)--; }
 				}
 			}
 		}
-	} else {	// Do things the old way		
+	} else {	// Do things the old way
 		if ((!flow_mode) || (pred->class == BPred2bit && !frmt)) { // don't update in REV mode if FRMTs set and it's Bimod
 			if (dir_update_ptr->fwd_pdir1) {  
 				if (taken) {
@@ -4343,10 +4749,15 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 			}
 		} else { // REV mode
 			shift_history_right(pred->fwd_dirpred.twolev, fbaddr, taken);
-			
+
 			if (frmt==0) {
 				shift_history_right(pred->rev_dirpred.twolev, rbaddr, taken);
 			}
 		}
 	}
+
+	/* Release the per-call TAGE replacement bookkeeping arrays. */
+	free(tage_replacement_tags);
+	free(tage_replacement_counters);
+	free(tage_replacement_lengths);
 }

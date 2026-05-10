@@ -1,11 +1,11 @@
 reading benchmark database ./bench.db
 Doing gcc
 Installing gcc
-ln -s /home/greggbyr/common/Documents/MBP_FARS/simulator/bench/little/cc1.ss run.gcc
+ln -s /home/bvgch/FARS_BPred_container/FARS_BPred/simulator/bench/little/cc1.ss run.gcc
 Pre-run gcc
-cp /home/greggbyr/common/Documents/MBP_FARS/simulator/input/ref/varasm.i .
+cp /home/bvgch/FARS_BPred_container/FARS_BPred/simulator/input/ref/varasm.i .
 Run gcc
-/home/greggbyr/common/Documents/MBP_FARS/simulator/ss3/sim-outorder -max:inst 10000000 -bpred tscl -bpred:tscl 2 1048576 5 2 1 run.gcc varasm.i -quiet -funroll-loops -fforce-mem -fcse-follow-jumps -fcse-skip-blocks -fexpensive-optimizations -fstrength-reduce -fpeephole -fschedule-insns -finline-functions -fschedule-insns2 -O -o varasm.s > varasm.out
+/home/bvgch/FARS_BPred_container/FARS_BPred/simulator/ss3/sim-outorder -max:inst 10000000 -bpred tscl -bpred:tscl 2 1048576 5 2 1 run.gcc varasm.i -quiet -funroll-loops -fforce-mem -fcse-follow-jumps -fcse-skip-blocks -fexpensive-optimizations -fstrength-reduce -fpeephole -fschedule-insns -finline-functions -fschedule-insns2 -O -o varasm.s > varasm.out
 sim-outorder: SimpleScalar/PISA Tool Set version 3.0 of August, 2003.
 Copyright (c) 1994-2003 by Todd M. Austin, Ph.D. and SimpleScalar, LLC.
 All Rights Reserved. This version of SimpleScalar is licensed for academic
@@ -13,9 +13,9 @@ non-commercial use.  No portion of this work may be used by any commercial
 entity, or for any commercial purpose, without the prior written permission
 of SimpleScalar, LLC (info@simplescalar.com).
 
-sim: command line: /home/greggbyr/common/Documents/MBP_FARS/simulator/ss3/sim-outorder -max:inst 10000000 -bpred tscl -bpred:tscl 2 1048576 5 2 1 run.gcc varasm.i -quiet -funroll-loops -fforce-mem -fcse-follow-jumps -fcse-skip-blocks -fexpensive-optimizations -fstrength-reduce -fpeephole -fschedule-insns -finline-functions -fschedule-insns2 -O -o varasm.s 
+sim: command line: /home/bvgch/FARS_BPred_container/FARS_BPred/simulator/ss3/sim-outorder -max:inst 10000000 -bpred tscl -bpred:tscl 2 1048576 5 2 1 run.gcc varasm.i -quiet -funroll-loops -fforce-mem -fcse-follow-jumps -fcse-skip-blocks -fexpensive-optimizations -fstrength-reduce -fpeephole -fschedule-insns -finline-functions -fschedule-insns2 -O -o varasm.s 
 
-sim: simulation started @ Tue Jan 28 10:43:52 2025, options follow:
+sim: simulation started @ Sun May 10 04:17:33 2026, options follow:
 
 sim-outorder: This simulator implements a very detailed out-of-order issue
 superscalar processor with a two-level memory system and speculative
@@ -144,127 +144,389 @@ latency of all pipeline operations.
 
 
 sim: ** starting performance simulation **
+[TSCL_TRACE 0] LOOKUP_FWD_SC depth=1 addr=0x00602f90 key=6303634 idx=12178 comptag=6303634 storedtag=0 ctr=1
+[TSCL_TRACE 1] LOOKUP_FWD_SC depth=2 addr=0x00602f90 key=25214546 idx=48722 comptag=25214546 storedtag=0 ctr=1
+[TSCL_TRACE 2] LOOKUP_FWD_SC depth=3 addr=0x00602f90 key=403432946 idx=124402 comptag=403432946 storedtag=0 ctr=1
+[TSCL_TRACE 3] LOOKUP_FWD_SC depth=4 addr=0x00602f90 key=199493106 idx=1522 comptag=199493106 storedtag=0 ctr=1
+[TSCL_TRACE 4] LOOKUP_FWD_LOOP addr=0x00602f90 key=25214546 idx=0 comptag=25214546 storedtag=0 ctr=1 thr=3
+[TSCL_TRACE 5] FWD_CHOICE addr=0x00602f90 source=BIMOD tage_match=0 loop_match=0 llbt_match=0 sum=0 invert=0 valid=0 value=0 final=0
+[TSCL_TRACE 6] LOOKUP_FRMT_REV_TAGE depth=4 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0
+[TSCL_TRACE 7] LOOKUP_FRMT_REV_SC depth=1 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0 ctr=1
+[TSCL_TRACE 8] LOOKUP_FRMT_REV_SC depth=2 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0 ctr=1
+[TSCL_TRACE 9] LOOKUP_FRMT_REV_SC depth=3 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0 ctr=1
+[TSCL_TRACE 10] LOOKUP_FRMT_REV_SC depth=4 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0 ctr=1
+[TSCL_TRACE 11] LOOKUP_FRMT_REV_LOOP addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0 ctr=1 thr=3
+[TSCL_TRACE 12] FRMT_ADDR_MAP rev_idx=12176 fwd_addr=0x00602f90
+[TSCL_TRACE 13] UPDATE_SC_TAG key=6303634 idx=12178 newtag=6303634 correct=1 und=1 thu=0
+[TSCL_TRACE 14] UPDATE_SC_TAG key=25214546 idx=48722 newtag=25214546 correct=1 und=1 thu=0
+[TSCL_TRACE 15] UPDATE_SC_TAG key=403432946 idx=124402 newtag=403432946 correct=1 und=1 thu=0
+[TSCL_TRACE 16] UPDATE_SC_TAG key=199493106 idx=1522 newtag=199493106 correct=1 und=1 thu=0
+[TSCL_TRACE 17] UPDATE_LOOP_TAG key=25214546 idx=0 newtag=25214546 taken=0
+[TSCL_TRACE 18] LOOKUP_FWD_SC depth=1 addr=0x00602fa0 key=6303652 idx=12196 comptag=6303652 storedtag=0 ctr=1
+[TSCL_TRACE 19] LOOKUP_FWD_SC depth=2 addr=0x00602fa0 key=25214612 idx=48788 comptag=25214612 storedtag=0 ctr=1
+[TSCL_TRACE 20] LOOKUP_FWD_SC depth=3 addr=0x00602fa0 key=403433972 idx=125428 comptag=403433972 storedtag=0 ctr=1
+[TSCL_TRACE 21] LOOKUP_FWD_SC depth=4 addr=0x00602fa0 key=199755252 idx=1524 comptag=199755252 storedtag=0 ctr=1
+[TSCL_TRACE 22] LOOKUP_FWD_LOOP addr=0x00602fa0 key=25214612 idx=0 comptag=25214612 storedtag=25214546 ctr=0 thr=3
+[TSCL_TRACE 23] FWD_CHOICE addr=0x00602fa0 source=BIMOD tage_match=0 loop_match=0 llbt_match=0 sum=0 invert=0 valid=0 value=0 final=0
+[TSCL_TRACE 24] LOOKUP_FRMT_REV_TAGE depth=4 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0
+[TSCL_TRACE 25] LOOKUP_FRMT_REV_SC depth=1 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0 ctr=1
+[TSCL_TRACE 26] LOOKUP_FRMT_REV_SC depth=2 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0 ctr=1
+[TSCL_TRACE 27] LOOKUP_FRMT_REV_SC depth=3 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0 ctr=1
+[TSCL_TRACE 28] LOOKUP_FRMT_REV_SC depth=4 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0 ctr=1
+[TSCL_TRACE 29] LOOKUP_FRMT_REV_LOOP addr=0x00000000 key=0 idx=0 comptag=0 storedtag=25214546 ctr=0 thr=3
+[TSCL_TRACE 30] FRMT_ADDR_MAP rev_idx=12192 fwd_addr=0x00602fa0
+[TSCL_TRACE 31] UPDATE_SC_TAG key=6303652 idx=12196 newtag=6303652 correct=1 und=1 thu=0
+[TSCL_TRACE 32] UPDATE_SC_TAG key=25214612 idx=48788 newtag=25214612 correct=1 und=1 thu=0
+[TSCL_TRACE 33] UPDATE_SC_TAG key=403433972 idx=125428 newtag=403433972 correct=1 und=1 thu=0
+[TSCL_TRACE 34] UPDATE_SC_TAG key=199755252 idx=1524 newtag=199755252 correct=1 und=1 thu=0
+[TSCL_TRACE 35] UPDATE_LOOP_TAG key=25214612 idx=0 newtag=25214612 taken=0
+[TSCL_TRACE 36] LOOKUP_FWD_SC depth=1 addr=0x006089c8 key=6326729 idx=35273 comptag=6326729 storedtag=0 ctr=2
+[TSCL_TRACE 37] LOOKUP_FWD_SC depth=2 addr=0x006089c8 key=25306937 idx=141113 comptag=25306937 storedtag=0 ctr=2
+[TSCL_TRACE 38] LOOKUP_FWD_SC depth=3 addr=0x006089c8 key=404910905 idx=29497 comptag=404910905 storedtag=0 ctr=2
+[TSCL_TRACE 39] LOOKUP_FWD_SC depth=4 addr=0x006089c8 key=577900857 idx=4409 comptag=577900857 storedtag=0 ctr=2
+[TSCL_TRACE 40] LOOKUP_FWD_LOOP addr=0x006089c8 key=25306937 idx=1 comptag=25306937 storedtag=0 ctr=2 thr=3
+[TSCL_TRACE 41] FWD_CHOICE addr=0x006089c8 source=BIMOD tage_match=0 loop_match=0 llbt_match=0 sum=1 invert=0 valid=0 value=0 final=1
+[TSCL_TRACE 42] LOOKUP_FRMT_REV_TAGE depth=4 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0
+[TSCL_TRACE 43] LOOKUP_FRMT_REV_SC depth=1 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0 ctr=1
+[TSCL_TRACE 44] LOOKUP_FRMT_REV_SC depth=2 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0 ctr=1
+[TSCL_TRACE 45] LOOKUP_FRMT_REV_SC depth=3 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0 ctr=1
+[TSCL_TRACE 46] LOOKUP_FRMT_REV_SC depth=4 addr=0x00000000 key=0 idx=0 comptag=0 storedtag=0 ctr=1
+[TSCL_TRACE 47] LOOKUP_FRMT_REV_LOOP addr=0x00000000 key=0 idx=0 comptag=0 storedtag=25214612 ctr=0 thr=3
+[TSCL_TRACE 48] FRMT_ADDR_MAP rev_idx=35272 fwd_addr=0x006089c8
+[TSCL_TRACE 49] UPDATE_TAGE_TAG key=202455353 idx=80185 newtag=202455353 taken=1
+[TSCL_TRACE 50] UPDATE_SC_TAG key=6326729 idx=35273 newtag=6326729 correct=0 und=1 thu=0
+[TSCL_TRACE 51] UPDATE_SC_TAG key=25306937 idx=141113 newtag=25306937 correct=0 und=1 thu=0
+[TSCL_TRACE 52] UPDATE_SC_TAG key=404910905 idx=29497 newtag=404910905 correct=0 und=1 thu=0
+[TSCL_TRACE 53] UPDATE_SC_TAG key=577900857 idx=4409 newtag=577900857 correct=0 und=1 thu=0
+[TSCL_TRACE 54] UPDATE_LOOP_TAG key=25306937 idx=1 newtag=25306937 taken=1
+[TSCL_TRACE 55] LOOKUP_FWD_SC depth=1 addr=0x005fe928 key=6285612 idx=518444 comptag=6285612 storedtag=0 ctr=1
+[TSCL_TRACE 56] LOOKUP_FWD_SC depth=2 addr=0x005fe928 key=25142436 idx=238756 comptag=25142436 storedtag=0 ctr=1
+[TSCL_TRACE 57] LOOKUP_FWD_SC depth=3 addr=0x005fe928 key=402279204 idx=19236 comptag=402279204 storedtag=0 ctr=1
+[TSCL_TRACE 58] LOOKUP_FWD_SC depth=4 addr=0x005fe928 key=-95683292 idx=64804 comptag=-95683292 storedtag=0 ctr=1
+[TSCL_TRACE 59] LOOKUP_FWD_LOOP addr=0x005fe928 key=25142436 idx=0 comptag=25142436 storedtag=25214612 ctr=0 thr=3
+[TSCL_TRACE 60] FWD_CHOICE addr=0x005fe928 source=BIMOD tage_match=0 loop_match=0 llbt_match=0 sum=0 invert=0 valid=0 value=0 final=0
+[TSCL_TRACE 61] LOOKUP_FRMT_REV_TAGE depth=4 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0
+[TSCL_TRACE 62] LOOKUP_FRMT_REV_TAGE depth=3 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0
+[TSCL_TRACE 63] LOOKUP_FRMT_REV_TAGE depth=2 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0
+[TSCL_TRACE 64] LOOKUP_FRMT_REV_TAGE depth=1 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0
+[TSCL_TRACE 65] LOOKUP_FRMT_REV_SC depth=1 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0 ctr=2
+[TSCL_TRACE 66] LOOKUP_FRMT_REV_SC depth=2 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0 ctr=2
+[TSCL_TRACE 67] LOOKUP_FRMT_REV_SC depth=3 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0 ctr=2
+[TSCL_TRACE 68] LOOKUP_FRMT_REV_SC depth=4 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0 ctr=2
+[TSCL_TRACE 69] LOOKUP_FRMT_REV_LOOP addr=0x00000000 key=1 idx=1 comptag=1 storedtag=25306937 ctr=0 thr=3
+[TSCL_TRACE 70] LOOKUP_FWD_SC depth=1 addr=0x005fe938 key=6285630 idx=518462 comptag=6285630 storedtag=0 ctr=1
+[TSCL_TRACE 71] LOOKUP_FWD_SC depth=2 addr=0x005fe938 key=25142502 idx=238822 comptag=25142502 storedtag=0 ctr=1
+[TSCL_TRACE 72] LOOKUP_FWD_SC depth=3 addr=0x005fe938 key=402280230 idx=20262 comptag=402280230 storedtag=0 ctr=1
+[TSCL_TRACE 73] LOOKUP_FWD_SC depth=4 addr=0x005fe938 key=-95421146 idx=64806 comptag=-95421146 storedtag=0 ctr=1
+[TSCL_TRACE 74] LOOKUP_FWD_LOOP addr=0x005fe938 key=25142502 idx=0 comptag=25142502 storedtag=25214612 ctr=0 thr=3
+[TSCL_TRACE 75] FWD_CHOICE addr=0x005fe938 source=BIMOD tage_match=0 loop_match=0 llbt_match=0 sum=0 invert=0 valid=0 value=0 final=0
+[TSCL_TRACE 76] LOOKUP_FRMT_REV_TAGE depth=4 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0
+[TSCL_TRACE 77] LOOKUP_FRMT_REV_TAGE depth=3 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0
+[TSCL_TRACE 78] LOOKUP_FRMT_REV_TAGE depth=2 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0
+[TSCL_TRACE 79] LOOKUP_FRMT_REV_TAGE depth=1 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0
+[TSCL_TRACE 80] LOOKUP_FRMT_REV_SC depth=1 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0 ctr=2
+[TSCL_TRACE 81] LOOKUP_FRMT_REV_SC depth=2 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0 ctr=2
+[TSCL_TRACE 82] LOOKUP_FRMT_REV_SC depth=3 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0 ctr=2
+[TSCL_TRACE 83] LOOKUP_FRMT_REV_SC depth=4 addr=0x00000000 key=1 idx=1 comptag=1 storedtag=0 ctr=2
+[TSCL_TRACE 84] LOOKUP_FRMT_REV_LOOP addr=0x00000000 key=1 idx=1 comptag=1 storedtag=25306937 ctr=0 thr=3
+[TSCL_TRACE 85] FRMT_ADDR_MAP rev_idx=1042728 fwd_addr=0x005fe928
+[TSCL_TRACE 86] UPDATE_TAGE_TAG key=201139492 idx=75044 newtag=201139492 taken=1
+[TSCL_TRACE 87] UPDATE_SC_TAG key=6285612 idx=518444 newtag=6285612 correct=0 und=1 thu=0
+[TSCL_TRACE 88] UPDATE_SC_TAG key=25142436 idx=238756 newtag=25142436 correct=0 und=1 thu=0
+[TSCL_TRACE 89] UPDATE_SC_TAG key=402279204 idx=19236 newtag=402279204 correct=0 und=1 thu=0
+[TSCL_TRACE 90] UPDATE_SC_TAG key=-95683292 idx=64804 newtag=-95683292 correct=0 und=1 thu=0
+[TSCL_TRACE 91] UPDATE_LOOP_TAG key=25142436 idx=0 newtag=25142436 taken=1
+[TSCL_TRACE 92] LOOKUP_FWD_SC depth=1 addr=0x005fe9c8 key=6285770 idx=518602 comptag=6285770 storedtag=0 ctr=1
+[TSCL_TRACE 93] LOOKUP_FWD_SC depth=2 addr=0x005fe9c8 key=25143098 idx=239418 comptag=25143098 storedtag=0 ctr=1
+[TSCL_TRACE 94] LOOKUP_FWD_SC depth=3 addr=0x005fe9c8 key=402289466 idx=29498 comptag=402289466 storedtag=0 ctr=1
+[TSCL_TRACE 95] LOOKUP_FWD_SC depth=4 addr=0x005fe9c8 key=-93061830 idx=64826 comptag=-93061830 storedtag=0 ctr=1
+[TSCL_TRACE 96] LOOKUP_FWD_LOOP addr=0x005fe9c8 key=25143098 idx=0 comptag=25143098 storedtag=25142436 ctr=0 thr=3
+[TSCL_TRACE 97] FWD_CHOICE addr=0x005fe9c8 source=BIMOD tage_match=0 loop_match=0 llbt_match=0 sum=0 invert=0 valid=0 value=0 final=0
+[TSCL_TRACE 98] LOOKUP_FRMT_REV_TAGE depth=4 addr=0x00000000 key=3 idx=3 comptag=3 storedtag=0
+[TSCL_TRACE 99] LOOKUP_FRMT_REV_TAGE depth=3 addr=0x00000000 key=3 idx=3 comptag=3 storedtag=0
+[TSCL_TRACE 100] LOOKUP_FRMT_REV_TAGE depth=2 addr=0x00000000 key=3 idx=3 comptag=3 storedtag=0
+[TSCL_TRACE 101] LOOKUP_FRMT_REV_TAGE depth=1 addr=0x00000000 key=3 idx=3 comptag=3 storedtag=0
+[TSCL_TRACE 102] LOOKUP_FRMT_REV_SC depth=1 addr=0x00000000 key=3 idx=3 comptag=3 storedtag=0 ctr=2
+[TSCL_TRACE 103] LOOKUP_FRMT_REV_SC depth=2 addr=0x00000000 key=3 idx=3 comptag=3 storedtag=0 ctr=2
+[TSCL_TRACE 104] LOOKUP_FRMT_REV_SC depth=3 addr=0x00000000 key=3 idx=3 comptag=3 storedtag=0 ctr=2
+[TSCL_TRACE 105] LOOKUP_FRMT_REV_SC depth=4 addr=0x00000000 key=3 idx=3 comptag=3 storedtag=0 ctr=2
+[TSCL_TRACE 106] LOOKUP_FRMT_REV_LOOP addr=0x00000000 key=3 idx=1 comptag=3 storedtag=25306937 ctr=0 thr=3
+[TSCL_TRACE 107] FRMT_ADDR_MAP rev_idx=1042888 fwd_addr=0x005fe9c8
+[TSCL_TRACE 108] UPDATE_SC_TAG key=6285770 idx=518602 newtag=6285770 correct=1 und=1 thu=0
+[TSCL_TRACE 109] UPDATE_SC_TAG key=25143098 idx=239418 newtag=25143098 correct=1 und=1 thu=0
+[TSCL_TRACE 110] UPDATE_SC_TAG key=402289466 idx=29498 newtag=402289466 correct=1 und=1 thu=0
+[TSCL_TRACE 111] UPDATE_SC_TAG key=-93061830 idx=64826 newtag=-93061830 correct=1 und=1 thu=0
+[TSCL_TRACE 112] UPDATE_LOOP_TAG key=25143098 idx=0 newtag=25143098 taken=0
+[TSCL_TRACE 113] LOOKUP_FWD_SC depth=1 addr=0x005fe9f8 key=6285817 idx=518649 comptag=6285817 storedtag=0 ctr=2
+[TSCL_TRACE 114] LOOKUP_FWD_SC depth=2 addr=0x005fe9f8 key=25143289 idx=239609 comptag=25143289 storedtag=0 ctr=2
+[TSCL_TRACE 115] LOOKUP_FWD_SC depth=3 addr=0x005fe9f8 key=402292537 idx=32569 comptag=402292537 storedtag=0 ctr=2
+[TSCL_TRACE 116] LOOKUP_FWD_SC depth=4 addr=0x005fe9f8 key=-92275399 idx=64825 comptag=-92275399 storedtag=0 ctr=2
+[TSCL_TRACE 117] LOOKUP_FWD_LOOP addr=0x005fe9f8 key=25143289 idx=1 comptag=25143289 storedtag=25306937 ctr=0 thr=3
+[TSCL_TRACE 118] FWD_CHOICE addr=0x005fe9f8 source=BIMOD tage_match=0 loop_match=0 llbt_match=0 sum=0 invert=0 valid=0 value=0 final=0
+[TSCL_TRACE 119] LOOKUP_FRMT_REV_TAGE depth=4 addr=0x00000000 key=6 idx=6 comptag=6 storedtag=0
+[TSCL_TRACE 120] LOOKUP_FRMT_REV_TAGE depth=3 addr=0x00000000 key=6 idx=6 comptag=6 storedtag=0
+[TSCL_TRACE 121] LOOKUP_FRMT_REV_TAGE depth=2 addr=0x00000000 key=6 idx=6 comptag=6 storedtag=0
+[TSCL_TRACE 122] LOOKUP_FRMT_REV_TAGE depth=1 addr=0x00000000 key=2 idx=2 comptag=2 storedtag=0
+[TSCL_TRACE 123] LOOKUP_FRMT_REV_SC depth=1 addr=0x00000000 key=6 idx=6 comptag=6 storedtag=0 ctr=1
+[TSCL_TRACE 124] LOOKUP_FRMT_REV_SC depth=2 addr=0x00000000 key=6 idx=6 comptag=6 storedtag=0 ctr=1
+[TSCL_TRACE 125] LOOKUP_FRMT_REV_SC depth=3 addr=0x00000000 key=6 idx=6 comptag=6 storedtag=0 ctr=1
+[TSCL_TRACE 126] LOOKUP_FRMT_REV_SC depth=4 addr=0x00000000 key=6 idx=6 comptag=6 storedtag=0 ctr=1
+[TSCL_TRACE 127] LOOKUP_FRMT_REV_LOOP addr=0x00000000 key=6 idx=0 comptag=6 storedtag=25143098 ctr=0 thr=3
+[TSCL_TRACE 128] FRMT_ADDR_MAP rev_idx=1042936 fwd_addr=0x005fe9f8
+[TSCL_TRACE 129] UPDATE_TAGE_TAG key=201146169 idx=81721 newtag=201146169 taken=1
+[TSCL_TRACE 130] UPDATE_SC_TAG key=6285817 idx=518649 newtag=6285817 correct=0 und=1 thu=0
+[TSCL_TRACE 131] UPDATE_SC_TAG key=25143289 idx=239609 newtag=25143289 correct=0 und=1 thu=0
+[TSCL_TRACE 132] UPDATE_SC_TAG key=402292537 idx=32569 newtag=402292537 correct=0 und=1 thu=0
+[TSCL_TRACE 133] UPDATE_SC_TAG key=-92275399 idx=64825 newtag=-92275399 correct=0 und=1 thu=0
+[TSCL_TRACE 134] UPDATE_LOOP_TAG key=25143289 idx=1 newtag=25143289 taken=1
+[TSCL_TRACE 135] LOOKUP_FWD_SC depth=1 addr=0x005fe9c8 key=6285772 idx=518604 comptag=6285772 storedtag=0 ctr=1
+[TSCL_TRACE 136] LOOKUP_FWD_SC depth=2 addr=0x005fe9c8 key=25143092 idx=239412 comptag=25143092 storedtag=0 ctr=1
+[TSCL_TRACE 137] LOOKUP_FWD_SC depth=3 addr=0x005fe9c8 key=402289460 idx=29492 comptag=402289460 storedtag=0 ctr=1
+[TSCL_TRACE 138] LOOKUP_FWD_SC depth=4 addr=0x005fe9c8 key=-93061836 idx=64820 comptag=-93061836 storedtag=0 ctr=1
+[TSCL_TRACE 139] LOOKUP_FWD_LOOP addr=0x005fe9c8 key=25143092 idx=0 comptag=25143092 storedtag=25143098 ctr=0 thr=3
+[TSCL_TRACE 140] FWD_CHOICE addr=0x005fe9c8 source=BIMOD tage_match=0 loop_match=0 llbt_match=0 sum=0 invert=0 valid=0 value=0 final=0
+[TSCL_TRACE 141] LOOKUP_FRMT_REV_TAGE depth=4 addr=0x005fe9c8 key=-46531276 idx=64820 comptag=-46531276 storedtag=0
+[TSCL_TRACE 142] LOOKUP_FRMT_REV_TAGE depth=3 addr=0x005fe9c8 key=201144628 idx=80180 comptag=201144628 storedtag=0
+[TSCL_TRACE 143] LOOKUP_FRMT_REV_TAGE depth=2 addr=0x005fe9c8 key=12571540 idx=250772 comptag=12571540 storedtag=0
+[TSCL_TRACE 144] LOOKUP_FRMT_REV_TAGE depth=1 addr=0x005fe9c8 key=3142884 idx=521444 comptag=3142884 storedtag=0
+[TSCL_TRACE 145] LOOKUP_FRMT_REV_SC depth=1 addr=0x005fe9c8 key=6285772 idx=518604 comptag=6285772 storedtag=0 ctr=1
+[TSCL_TRACE 146] LOOKUP_FRMT_REV_SC depth=2 addr=0x005fe9c8 key=25143092 idx=239412 comptag=25143092 storedtag=0 ctr=1
+[TSCL_TRACE 147] LOOKUP_FRMT_REV_SC depth=3 addr=0x005fe9c8 key=402289460 idx=29492 comptag=402289460 storedtag=0 ctr=1
+[TSCL_TRACE 148] LOOKUP_FRMT_REV_SC depth=4 addr=0x005fe9c8 key=-93061836 idx=64820 comptag=-93061836 storedtag=0 ctr=1
+[TSCL_TRACE 149] LOOKUP_FRMT_REV_LOOP addr=0x005fe9c8 key=25143092 idx=0 comptag=25143092 storedtag=25143098 ctr=0 thr=3
+[TSCL_TRACE 150] LOOKUP_FWD_SC depth=1 addr=0x005fe9f8 key=6285818 idx=518650 comptag=6285818 storedtag=0 ctr=1
+[TSCL_TRACE 151] LOOKUP_FWD_SC depth=2 addr=0x005fe9f8 key=25143282 idx=239602 comptag=25143282 storedtag=0 ctr=1
+[TSCL_TRACE 152] LOOKUP_FWD_SC depth=3 addr=0x005fe9f8 key=402292530 idx=32562 comptag=402292530 storedtag=0 ctr=1
+[TSCL_TRACE 153] LOOKUP_FWD_SC depth=4 addr=0x005fe9f8 key=-92275406 idx=64818 comptag=-92275406 storedtag=0 ctr=1
+[TSCL_TRACE 154] LOOKUP_FWD_LOOP addr=0x005fe9f8 key=25143282 idx=0 comptag=25143282 storedtag=25143098 ctr=0 thr=3
+[TSCL_TRACE 155] FWD_CHOICE addr=0x005fe9f8 source=BIMOD tage_match=0 loop_match=0 llbt_match=0 sum=1 invert=0 valid=0 value=0 final=1
+[TSCL_TRACE 156] LOOKUP_FRMT_REV_TAGE depth=4 addr=0x005fe9f8 key=-46138062 idx=64818 comptag=-46138062 storedtag=0
+[TSCL_TRACE 157] LOOKUP_FRMT_REV_TAGE depth=3 addr=0x005fe9f8 key=201146162 idx=81714 comptag=201146162 storedtag=0
+[TSCL_TRACE 158] LOOKUP_FRMT_REV_TAGE depth=2 addr=0x005fe9f8 key=12571634 idx=250866 comptag=12571634 storedtag=0
+[TSCL_TRACE 159] LOOKUP_FRMT_REV_TAGE depth=1 addr=0x005fe9f8 key=3142910 idx=521470 comptag=3142910 storedtag=0
+[TSCL_TRACE 160] LOOKUP_FRMT_REV_SC depth=1 addr=0x005fe9f8 key=6285818 idx=518650 comptag=6285818 storedtag=0 ctr=1
+[TSCL_TRACE 161] LOOKUP_FRMT_REV_SC depth=2 addr=0x005fe9f8 key=25143282 idx=239602 comptag=25143282 storedtag=0 ctr=1
+[TSCL_TRACE 162] LOOKUP_FRMT_REV_SC depth=3 addr=0x005fe9f8 key=402292530 idx=32562 comptag=402292530 storedtag=0 ctr=1
+[TSCL_TRACE 163] LOOKUP_FRMT_REV_SC depth=4 addr=0x005fe9f8 key=-92275406 idx=64818 comptag=-92275406 storedtag=0 ctr=1
+[TSCL_TRACE 164] LOOKUP_FRMT_REV_LOOP addr=0x005fe9f8 key=25143282 idx=0 comptag=25143282 storedtag=25143098 ctr=0 thr=3
+[TSCL_TRACE 165] LOOKUP_FWD_SC depth=1 addr=0x005fe9c8 key=6285772 idx=518604 comptag=6285772 storedtag=0 ctr=1
+[TSCL_TRACE 166] LOOKUP_FWD_SC depth=2 addr=0x005fe9c8 key=25143092 idx=239412 comptag=25143092 storedtag=0 ctr=1
+[TSCL_TRACE 167] LOOKUP_FWD_SC depth=3 addr=0x005fe9c8 key=402289460 idx=29492 comptag=402289460 storedtag=0 ctr=1
+[TSCL_TRACE 168] LOOKUP_FWD_SC depth=4 addr=0x005fe9c8 key=-93061836 idx=64820 comptag=-93061836 storedtag=0 ctr=1
+[TSCL_TRACE 169] LOOKUP_FWD_LOOP addr=0x005fe9c8 key=25143092 idx=0 comptag=25143092 storedtag=25143098 ctr=0 thr=3
+[TSCL_TRACE 170] FWD_CHOICE addr=0x005fe9c8 source=BIMOD tage_match=0 loop_match=0 llbt_match=0 sum=0 invert=0 valid=0 value=0 final=0
+[TSCL_TRACE 171] LOOKUP_FRMT_REV_TAGE depth=4 addr=0x005fe9c8 key=-46531276 idx=64820 comptag=-46531276 storedtag=0
+[TSCL_TRACE 172] LOOKUP_FRMT_REV_TAGE depth=3 addr=0x005fe9c8 key=201144628 idx=80180 comptag=201144628 storedtag=0
+[TSCL_TRACE 173] LOOKUP_FRMT_REV_TAGE depth=2 addr=0x005fe9c8 key=12571540 idx=250772 comptag=12571540 storedtag=0
+[TSCL_TRACE 174] LOOKUP_FRMT_REV_TAGE depth=1 addr=0x005fe9c8 key=3142884 idx=521444 comptag=3142884 storedtag=0
+[TSCL_TRACE 175] LOOKUP_FRMT_REV_SC depth=1 addr=0x005fe9c8 key=6285772 idx=518604 comptag=6285772 storedtag=0 ctr=1
+[TSCL_TRACE 176] LOOKUP_FRMT_REV_SC depth=2 addr=0x005fe9c8 key=25143092 idx=239412 comptag=25143092 storedtag=0 ctr=1
+[TSCL_TRACE 177] LOOKUP_FRMT_REV_SC depth=3 addr=0x005fe9c8 key=402289460 idx=29492 comptag=402289460 storedtag=0 ctr=1
+[TSCL_TRACE 178] LOOKUP_FRMT_REV_SC depth=4 addr=0x005fe9c8 key=-93061836 idx=64820 comptag=-93061836 storedtag=0 ctr=1
+[TSCL_TRACE 179] LOOKUP_FRMT_REV_LOOP addr=0x005fe9c8 key=25143092 idx=0 comptag=25143092 storedtag=25143098 ctr=0 thr=3
+[TSCL_TRACE 180] FRMT_ADDR_MAP rev_idx=1042888 fwd_addr=0x005fe9c8
+[TSCL_TRACE 181] UPDATE_TAGE_TAG key=-46531276 idx=64820 newtag=-46531276 taken=1
+[TSCL_TRACE 182] UPDATE_SC_TAG key=6285772 idx=518604 newtag=6285772 correct=0 und=1 thu=0
+[TSCL_TRACE 183] UPDATE_SC_TAG key=25143092 idx=239412 newtag=25143092 correct=0 und=1 thu=0
+[TSCL_TRACE 184] UPDATE_SC_TAG key=402289460 idx=29492 newtag=402289460 correct=0 und=1 thu=0
+[TSCL_TRACE 185] UPDATE_SC_TAG key=-93061836 idx=64820 newtag=-93061836 correct=0 und=1 thu=0
+[TSCL_TRACE 186] UPDATE_LOOP_TAG key=25143092 idx=0 newtag=25143092 taken=1
+[TSCL_TRACE 187] LOOKUP_FWD_SC depth=1 addr=0x005fea10 key=6285841 idx=518673 comptag=6285841 storedtag=0 ctr=2
+[TSCL_TRACE 188] LOOKUP_FWD_SC depth=2 addr=0x005fea10 key=25143385 idx=239705 comptag=25143385 storedtag=0 ctr=2
+[TSCL_TRACE 189] LOOKUP_FWD_SC depth=3 addr=0x005fea10 key=402294105 idx=34137 comptag=402294105 storedtag=0 ctr=2
+[TSCL_TRACE 190] LOOKUP_FWD_SC depth=4 addr=0x005fea10 key=-91882151 idx=64857 comptag=-91882151 storedtag=0 ctr=2
+[TSCL_TRACE 191] LOOKUP_FWD_LOOP addr=0x005fea10 key=25143385 idx=1 comptag=25143385 storedtag=25143289 ctr=0 thr=3
+[TSCL_TRACE 192] FWD_CHOICE addr=0x005fea10 source=BIMOD tage_match=0 loop_match=0 llbt_match=0 sum=1 invert=0 valid=0 value=0 final=1
+[TSCL_TRACE 193] LOOKUP_FRMT_REV_TAGE depth=4 addr=0x00000000 key=27 idx=27 comptag=27 storedtag=0
+[TSCL_TRACE 194] LOOKUP_FRMT_REV_TAGE depth=3 addr=0x00000000 key=27 idx=27 comptag=27 storedtag=0
+[TSCL_TRACE 195] LOOKUP_FRMT_REV_TAGE depth=2 addr=0x00000000 key=11 idx=11 comptag=11 storedtag=0
+[TSCL_TRACE 196] LOOKUP_FRMT_REV_TAGE depth=1 addr=0x00000000 key=3 idx=3 comptag=3 storedtag=0
+[TSCL_TRACE 197] LOOKUP_FRMT_REV_SC depth=1 addr=0x00000000 key=3 idx=3 comptag=3 storedtag=0 ctr=2
+[TSCL_TRACE 198] LOOKUP_FRMT_REV_SC depth=2 addr=0x00000000 key=27 idx=27 comptag=27 storedtag=0 ctr=2
+[TSCL_TRACE 199] LOOKUP_FRMT_REV_SC depth=3 addr=0x00000000 key=27 idx=27 comptag=27 storedtag=0 ctr=2
 warning: syscall: sigvec ignored
 warning: syscall: sigvec ignored
 
 sim: ** simulation statistics **
-sim_num_insn               10000003 # total number of instructions committed
-sim_num_refs                3825300 # total number of loads and stores committed
-sim_num_loads               2544359 # total number of loads committed
-sim_num_stores         1280941.0000 # total number of stores committed
-sim_num_branches            2060457 # total number of branches committed
-sim_elapsed_time                 11 # total simulation time in seconds
-sim_inst_rate           909091.1818 # simulation speed (in insts/sec)
-sim_total_insn             11282684 # total number of instructions executed
-sim_total_refs              4252760 # total number of loads and stores executed
-sim_total_loads             2877165 # total number of loads executed
-sim_total_stores       1375595.0000 # total number of stores executed
-sim_total_branches          2330536 # total number of branches executed
-sim_cycle                  12429792 # total simulation time in cycles
-sim_IPC                      0.8045 # instructions per cycle
-sim_CPI                      1.2430 # cycles per instruction
-sim_exec_BW                  0.9077 # total instructions (mis-spec + committed) per cycle
-sim_IPB                      4.8533 # instruction per branch
-IFQ_count                  15495676 # cumulative IFQ occupancy
-IFQ_fcount                  3106311 # cumulative IFQ full count
-ifq_occupancy                1.2467 # avg IFQ occupancy (insn's)
-ifq_rate                     0.9077 # avg IFQ dispatch rate (insn/cycle)
-ifq_latency                  1.3734 # avg IFQ occupant latency (cycle's)
-ifq_full                     0.2499 # fraction of time (cycle's) IFQ was full
-RUU_count                  59010570 # cumulative RUU occupancy
-RUU_fcount                  1116333 # cumulative RUU full count
-ruu_occupancy                4.7475 # avg RUU occupancy (insn's)
-ruu_rate                     0.9077 # avg RUU dispatch rate (insn/cycle)
-ruu_latency                  5.2302 # avg RUU occupant latency (cycle's)
-ruu_full                     0.0898 # fraction of time (cycle's) RUU was full
-LSQ_count                  22944991 # cumulative LSQ occupancy
-LSQ_fcount                   703009 # cumulative LSQ full count
-lsq_occupancy                1.8460 # avg LSQ occupancy (insn's)
-lsq_rate                     0.9077 # avg LSQ dispatch rate (insn/cycle)
-lsq_latency                  2.0336 # avg LSQ occupant latency (cycle's)
-lsq_full                     0.0566 # fraction of time (cycle's) LSQ was full
-sim_slip                   89501103 # total number of slip cycles
-avg_sim_slip                 8.9501 # the average slip between issue and retirement
-bpred_tscl.lookups          2411059 # total number of bpred lookups
-bpred_tscl.updates          2060457 # total number of updates
-bpred_tscl.addr_hits        1861563 # total number of address-predicted hits
-bpred_tscl.dir_hits         1924064 # total number of direction-predicted hits (includes addr-hits)
-bpred_tscl.misses            136393 # total number of misses
-bpred_tscl.jr_hits           134591 # total number of address-predicted hits for JR's
-bpred_tscl.jr_seen           174461 # total number of JR's seen
-bpred_tscl.jr_non_ras_hits.PP        17126 # total number of address-predicted hits for non-RAS JR's
-bpred_tscl.jr_non_ras_seen.PP        53076 # total number of non-RAS JR's seen
-bpred_tscl.bpred_addr_rate    0.9035 # branch address-prediction rate (i.e., addr-hits/updates)
-bpred_tscl.bpred_dir_rate    0.9338 # branch direction-prediction rate (i.e., all-hits/updates)
-bpred_tscl.bpred_jr_rate    0.7715 # JR address-prediction rate (i.e., JR addr-hits/JRs seen)
+sim_num_insn               10000000 # total number of instructions committed
+sim_num_refs                3825174 # total number of loads and stores committed
+sim_num_loads               2544354 # total number of loads committed
+sim_num_stores         1280820.0000 # total number of stores committed
+sim_num_branches            2060509 # total number of branches committed
+sim_elapsed_time                  9 # total simulation time in seconds
+sim_inst_rate          1111111.1111 # simulation speed (in insts/sec)
+sim_total_insn             11325051 # total number of instructions executed
+sim_total_refs              4267089 # total number of loads and stores executed
+sim_total_loads             2890407 # total number of loads executed
+sim_total_stores       1376682.0000 # total number of stores executed
+sim_total_branches          2339133 # total number of branches executed
+sim_cycle                  12434141 # total simulation time in cycles
+sim_IPC                      0.8042 # instructions per cycle
+sim_CPI                      1.2434 # cycles per instruction
+sim_exec_BW                  0.9108 # total instructions (mis-spec + committed) per cycle
+sim_IPB                      4.8532 # instruction per branch
+IFQ_count                  15471411 # cumulative IFQ occupancy
+IFQ_fcount                  3104306 # cumulative IFQ full count
+ifq_occupancy                1.2443 # avg IFQ occupancy (insn's)
+ifq_rate                     0.9108 # avg IFQ dispatch rate (insn/cycle)
+ifq_latency                  1.3661 # avg IFQ occupant latency (cycle's)
+ifq_full                     0.2497 # fraction of time (cycle's) IFQ was full
+RUU_count                  58894239 # cumulative RUU occupancy
+RUU_fcount                  1105066 # cumulative RUU full count
+ruu_occupancy                4.7365 # avg RUU occupancy (insn's)
+ruu_rate                     0.9108 # avg RUU dispatch rate (insn/cycle)
+ruu_latency                  5.2004 # avg RUU occupant latency (cycle's)
+ruu_full                     0.0889 # fraction of time (cycle's) RUU was full
+LSQ_count                  22874926 # cumulative LSQ occupancy
+LSQ_fcount                   693839 # cumulative LSQ full count
+lsq_occupancy                1.8397 # avg LSQ occupancy (insn's)
+lsq_rate                     0.9108 # avg LSQ dispatch rate (insn/cycle)
+lsq_latency                  2.0199 # avg LSQ occupant latency (cycle's)
+lsq_full                     0.0558 # fraction of time (cycle's) LSQ was full
+sim_slip                   89264383 # total number of slip cycles
+avg_sim_slip                 8.9264 # the average slip between issue and retirement
+bpred_tscl.lookups          2424132 # total number of bpred lookups
+bpred_tscl.updates          2060509 # total number of updates
+bpred_tscl.addr_hits        1853310 # total number of address-predicted hits
+bpred_tscl.dir_hits         1915759 # total number of direction-predicted hits (includes addr-hits)
+bpred_tscl.misses            144750 # total number of misses
+bpred_tscl.jr_hits           134363 # total number of address-predicted hits for JR's
+bpred_tscl.jr_seen           174463 # total number of JR's seen
+bpred_tscl.jr_non_ras_hits.PP        17128 # total number of address-predicted hits for non-RAS JR's
+bpred_tscl.jr_non_ras_seen.PP        53074 # total number of non-RAS JR's seen
+bpred_tscl.bpred_addr_rate    0.8994 # branch address-prediction rate (i.e., addr-hits/updates)
+bpred_tscl.bpred_dir_rate    0.9298 # branch direction-prediction rate (i.e., all-hits/updates)
+bpred_tscl.bpred_jr_rate    0.7702 # JR address-prediction rate (i.e., JR addr-hits/JRs seen)
 bpred_tscl.bpred_jr_non_ras_rate.PP    0.3227 # non-RAS JR addr-pred rate (ie, non-RAS JR hits/JRs seen)
-bpred_tscl.retstack_pushes       148456 # total number of address pushed onto ret-addr stack
-bpred_tscl.retstack_pops       133822 # total number of address popped off of ret-addr stack
-bpred_tscl.used_ras.PP       121385 # total number of RAS predictions used
-bpred_tscl.ras_hits.PP       117465 # total number of RAS hits
-bpred_tscl.ras_rate.PP    0.9677 # RAS prediction rate (i.e., RAS hits/used RAS)
-bpred_tscl.reverse_lookups      2060457 # total number of reverse bpred lookups
-bpred_tscl.reverse_updates      2060457 # total number of reverse updates
-bpred_tscl.reverse_addr_hits      1924903 # total number of reverse address-predicted hits
-bpred_tscl.reverse_dir_hits      1984771 # total number of reverse direction-predicted hits (includes addr-hits)
-bpred_tscl.reverse_misses        75686 # total number of reverse misses
-bpred_tscl.reverse_jr_hits       138533 # total number of reverse address-predicted hits for JR's
-bpred_tscl.reverse_jr_seen       174461 # total number of reverse JR's seen
-bpred_tscl.reverse_jr_non_ras_hits.PP        17148 # total number of reverse address-predicted hits for non-RAS JR's
-bpred_tscl.reverse_jr_non_ras_seen.PP        53076 # total number of reverse non-RAS JR's seen
-bpred_tscl.reverse_bpred_addr_rate    0.9342 # branch address-prediction rate (i.e., addr-hits/updates)
-bpred_tscl.reverse_bpred_dir_rate    0.9633 # branch direction-prediction rate (i.e., all-hits/updates)
+bpred_tscl.retstack_pushes       148371 # total number of address pushed onto ret-addr stack
+bpred_tscl.retstack_pops       136366 # total number of address popped off of ret-addr stack
+bpred_tscl.used_ras.PP       121389 # total number of RAS predictions used
+bpred_tscl.ras_hits.PP       117235 # total number of RAS hits
+bpred_tscl.ras_rate.PP    0.9658 # RAS prediction rate (i.e., RAS hits/used RAS)
+bpred_tscl.reverse_lookups      2060509 # total number of reverse bpred lookups
+bpred_tscl.reverse_updates      2060509 # total number of reverse updates
+bpred_tscl.reverse_addr_hits      1973156 # total number of reverse address-predicted hits
+bpred_tscl.reverse_dir_hits      2035926 # total number of reverse direction-predicted hits (includes addr-hits)
+bpred_tscl.reverse_misses        24583 # total number of reverse misses
+bpred_tscl.reverse_jr_hits       138539 # total number of reverse address-predicted hits for JR's
+bpred_tscl.reverse_jr_seen       174463 # total number of reverse JR's seen
+bpred_tscl.reverse_jr_non_ras_hits.PP        17150 # total number of reverse address-predicted hits for non-RAS JR's
+bpred_tscl.reverse_jr_non_ras_seen.PP        53074 # total number of reverse non-RAS JR's seen
+bpred_tscl.reverse_bpred_addr_rate    0.9576 # branch address-prediction rate (i.e., addr-hits/updates)
+bpred_tscl.reverse_bpred_dir_rate    0.9881 # branch direction-prediction rate (i.e., all-hits/updates)
 bpred_tscl.reverse_bpred_jr_rate    0.7941 # JR address-prediction rate (i.e., JR addr-hits/JRs seen)
 bpred_tscl.reverse_bpred_jr_non_ras_rate.PP    0.3231 # non-RAS JR addr-pred rate (ie, non-RAS JR hits/JRs seen)
-bpred_tscl.reverse_retstack_pushes       121385 # total number of reverse address pushed onto ret-addr stack
-bpred_tscl.reverse_retstack_pops       121396 # total number of reverse address popped off of ret-addr stack
-bpred_tscl.reverse_used_ras.PP       121385 # total number of reverse RAS predictions used
-bpred_tscl.reverse_ras_hits.PP       121385 # total number of reverse RAS hits
+bpred_tscl.reverse_retstack_pushes       121389 # total number of reverse address pushed onto ret-addr stack
+bpred_tscl.reverse_retstack_pops       121402 # total number of reverse address popped off of ret-addr stack
+bpred_tscl.reverse_used_ras.PP       121389 # total number of reverse RAS predictions used
+bpred_tscl.reverse_ras_hits.PP       121389 # total number of reverse RAS hits
 bpred_tscl.reverse_ras_rate.PP    1.0000 # RAS prediction rate (i.e., RAS hits/used RAS)
-il1.accesses               12735888 # total number of accesses
-il1.hits                   11629406 # total number of hits
-il1.misses                  1106482 # total number of misses
-il1.replacements            1105970 # total number of replacements
+bpred_tscl.ob_fwd_lookups            0 # number of forward Outcome Buffer probes
+bpred_tscl.ob_fwd_hits            0 # number of forward Outcome Buffer hits
+bpred_tscl.ob_fwd_chosen            0 # number of forward Outcome Buffer selections
+bpred_tscl.ob_fwd_correct            0 # number of correct forward Outcome Buffer selections
+bpred_tscl.ob_rev_lookups      5082952 # number of reverse Outcome Buffer probes
+bpred_tscl.ob_rev_hits      2097152 # number of reverse Outcome Buffer hits
+bpred_tscl.ob_rev_chosen            0 # number of reverse Outcome Buffer selections
+bpred_tscl.ob_rev_correct      1029397 # number of correct reverse Outcome Buffer selections
+bpred_tscl.fhb_fwd_lookups            0 # number of forward FHB probes
+bpred_tscl.fhb_rev_lookups      5082952 # number of reverse FHB probes
+bpred_tscl.fhb_fwd_valid_out      1598765 # number of forward FHB valid-out events
+bpred_tscl.fhb_rev_valid_out      1598782 # number of reverse FHB valid-out events
+bpred_tscl.fhb_fwd_pred_uses            0 # number of forward FHB prediction uses
+bpred_tscl.fhb_rev_pred_uses            0 # number of reverse FHB prediction uses
+bpred_tscl.fhb_fwd_update_uses            0 # number of forward FHB update uses
+bpred_tscl.fhb_rev_update_uses            0 # number of reverse FHB update uses
+bpred_tscl.fhb_fwd_writes      1598782 # number of forward FHB writes
+bpred_tscl.fhb_rev_writes      1598782 # number of reverse FHB writes
+bpred_tscl.fhb_fwd_ob_bypassed            0 # number of forward FHB bypasses due to OB
+bpred_tscl.fhb_rev_ob_bypassed      2522223 # number of reverse FHB bypasses due to OB
+bpred_tscl.fhb_fwd_oht_bypassed            0 # number of forward FHB bypasses due to OHT
+bpred_tscl.fhb_rev_oht_bypassed      2522223 # number of reverse FHB bypasses due to OHT
+bpred_tscl.oht_fwd_lookups            0 # number of forward OHT probes
+bpred_tscl.oht_fwd_hits            0 # number of forward OHT hits
+bpred_tscl.oht_fwd_chosen            0 # number of forward OHT selections
+bpred_tscl.oht_fwd_correct            0 # number of correct forward OHT selections
+bpred_tscl.oht_rev_lookups      5082952 # number of reverse OHT probes
+bpred_tscl.oht_rev_hits       425071 # number of reverse OHT hits
+bpred_tscl.oht_rev_chosen            0 # number of reverse OHT selections
+bpred_tscl.oht_rev_correct       407013 # number of correct reverse OHT selections
+bpred_tscl.frmt_fwd_lookups            0 # number of forward FRMT lookups
+bpred_tscl.frmt_fwd_hits            0 # number of forward FRMT hits
+bpred_tscl.frmt_fwd_misses            0 # number of forward FRMT misses
+bpred_tscl.frmt_rev_lookups      8605659 # number of reverse FRMT lookups
+bpred_tscl.frmt_rev_hits      6777473 # number of reverse FRMT hits
+bpred_tscl.frmt_rev_misses      1828186 # number of reverse FRMT misses
+bpred_tscl.tage_fwd_lookups     11511842 # number of forward TAGE lookup attempts
+bpred_tscl.tage_rev_lookups            0 # number of reverse TAGE lookup attempts
+bpred_tscl.tage_fwd_tag_matches      1027028 # number of forward TAGE tag matches
+bpred_tscl.tage_rev_tag_matches            0 # number of reverse TAGE tag matches
+bpred_tscl.sc_fwd_lookups     13936680 # number of forward SC summation evaluations
+bpred_tscl.sc_rev_lookups            0 # number of reverse SC summation evaluations
+bpred_tscl.sc_fwd_inversions        38841 # number of forward SC-driven inversions
+bpred_tscl.sc_rev_inversions            0 # number of reverse SC-driven inversions
+bpred_tscl.sc_fwd_threshold_checks      3483658 # number of forward SC threshold checks
+bpred_tscl.sc_rev_threshold_checks            0 # number of reverse SC threshold checks
+bpred_tscl.sc_fwd_threshold_pass        38841 # number of forward SC threshold passes
+bpred_tscl.sc_rev_threshold_pass            0 # number of reverse SC threshold passes
+bpred_tscl.sc_fwd_updates            0 # number of forward SC updates
+bpred_tscl.sc_rev_updates            0 # number of reverse SC updates
+bpred_tscl.loop_fwd_lookups      3484170 # number of forward loop predictor lookups
+bpred_tscl.loop_rev_lookups      3484170 # number of reverse loop predictor lookups
+bpred_tscl.loop_fwd_hits          512 # number of forward loop predictor hits
+bpred_tscl.loop_rev_hits          512 # number of reverse loop predictor hits
+bpred_tscl.loop_fwd_chosen          512 # number of forward loop predictor selections
+bpred_tscl.loop_rev_chosen          512 # number of reverse loop predictor selections
+bpred_tscl.llbp_fwd_lookups            0 # number of forward LLBP lookup attempts
+bpred_tscl.llbp_rev_lookups            0 # number of reverse LLBP lookup attempts
+bpred_tscl.llbp_fwd_hits            0 # number of forward LLBP hits
+bpred_tscl.llbp_rev_hits            0 # number of reverse LLBP hits
+bpred_tscl.llbp_fwd_chosen            0 # number of forward LLBP selections
+bpred_tscl.llbp_rev_chosen            0 # number of reverse LLBP selections
+il1.accesses               12788518 # total number of accesses
+il1.hits                   11679227 # total number of hits
+il1.misses                  1109291 # total number of misses
+il1.replacements            1108779 # total number of replacements
 il1.writebacks                    0 # total number of writebacks
 il1.invalidations                 0 # total number of invalidations
-il1.miss_rate                0.0869 # miss rate (i.e., misses/ref)
-il1.repl_rate                0.0868 # replacement rate (i.e., repls/ref)
+il1.miss_rate                0.0867 # miss rate (i.e., misses/ref)
+il1.repl_rate                0.0867 # replacement rate (i.e., repls/ref)
 il1.wb_rate                  0.0000 # writeback rate (i.e., wrbks/ref)
 il1.inv_rate                 0.0000 # invalidation rate (i.e., invs/ref)
-dl1.accesses                3931364 # total number of accesses
-dl1.hits                    3863931 # total number of hits
-dl1.misses                    67433 # total number of misses
-dl1.replacements              66921 # total number of replacements
-dl1.writebacks                24865 # total number of writebacks
+dl1.accesses                3934057 # total number of accesses
+dl1.hits                    3866428 # total number of hits
+dl1.misses                    67629 # total number of misses
+dl1.replacements              67117 # total number of replacements
+dl1.writebacks                24905 # total number of writebacks
 dl1.invalidations                 0 # total number of invalidations
 dl1.miss_rate                0.0172 # miss rate (i.e., misses/ref)
-dl1.repl_rate                0.0170 # replacement rate (i.e., repls/ref)
+dl1.repl_rate                0.0171 # replacement rate (i.e., repls/ref)
 dl1.wb_rate                  0.0063 # writeback rate (i.e., wrbks/ref)
 dl1.inv_rate                 0.0000 # invalidation rate (i.e., invs/ref)
-ul2.accesses                1198780 # total number of accesses
-ul2.hits                    1148607 # total number of hits
-ul2.misses                    50173 # total number of misses
-ul2.replacements              46077 # total number of replacements
-ul2.writebacks                 8654 # total number of writebacks
+ul2.accesses                1201825 # total number of accesses
+ul2.hits                    1152417 # total number of hits
+ul2.misses                    49408 # total number of misses
+ul2.replacements              45312 # total number of replacements
+ul2.writebacks                 8542 # total number of writebacks
 ul2.invalidations                 0 # total number of invalidations
-ul2.miss_rate                0.0419 # miss rate (i.e., misses/ref)
-ul2.repl_rate                0.0384 # replacement rate (i.e., repls/ref)
-ul2.wb_rate                  0.0072 # writeback rate (i.e., wrbks/ref)
+ul2.miss_rate                0.0411 # miss rate (i.e., misses/ref)
+ul2.repl_rate                0.0377 # replacement rate (i.e., repls/ref)
+ul2.wb_rate                  0.0071 # writeback rate (i.e., wrbks/ref)
 ul2.inv_rate                 0.0000 # invalidation rate (i.e., invs/ref)
-itlb.accesses              12735888 # total number of accesses
-itlb.hits                  12727835 # total number of hits
-itlb.misses                    8053 # total number of misses
-itlb.replacements              7989 # total number of replacements
+itlb.accesses              12788518 # total number of accesses
+itlb.hits                  12780408 # total number of hits
+itlb.misses                    8110 # total number of misses
+itlb.replacements              8046 # total number of replacements
 itlb.writebacks                   0 # total number of writebacks
 itlb.invalidations                0 # total number of invalidations
 itlb.miss_rate               0.0006 # miss rate (i.e., misses/ref)
 itlb.repl_rate               0.0006 # replacement rate (i.e., repls/ref)
 itlb.wb_rate                 0.0000 # writeback rate (i.e., wrbks/ref)
 itlb.inv_rate                0.0000 # invalidation rate (i.e., invs/ref)
-dtlb.accesses               3985613 # total number of accesses
-dtlb.hits                   3985320 # total number of hits
-dtlb.misses                     293 # total number of misses
-dtlb.replacements               165 # total number of replacements
+dtlb.accesses               3988158 # total number of accesses
+dtlb.hits                   3987903 # total number of hits
+dtlb.misses                     255 # total number of misses
+dtlb.replacements               127 # total number of replacements
 dtlb.writebacks                   0 # total number of writebacks
 dtlb.invalidations                0 # total number of invalidations
 dtlb.miss_rate               0.0001 # miss rate (i.e., misses/ref)
@@ -281,10 +543,10 @@ ld_stack_size                 16384 # program initial stack size
 ld_prog_entry            0x00400140 # program entry point (initial PC)
 ld_environ_base          0x7fff8000 # program environment base address address
 ld_target_big_endian              0 # target executable endian-ness, non-zero if big endian
-mem.page_count                  727 # total number of pages allocated
-mem.page_mem                  2908k # total size of memory pages allocated
-mem.ptab_misses                1020 # total first level page table misses
-mem.ptab_accesses          92324447 # total page table accesses
+mem.page_count                  712 # total number of pages allocated
+mem.page_mem                  2848k # total size of memory pages allocated
+mem.ptab_misses                1009 # total first level page table misses
+mem.ptab_accesses          92487551 # total page table accesses
 mem.ptab_miss_rate           0.0000 # first level page table miss rate
 
 Post-run gcc

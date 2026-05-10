@@ -157,7 +157,8 @@ struct bpred_dir_t {
 			int l1size;		/* level-1 size, number of history regs */
 			int l2size;		/* level-2 size, number of pred states */
 			int shift_width;		/* amount of history in level-1 shift regs */
-			int threshold;			/*	SC/LOOP threshold */
+			int sc_threshold;		/* scalable SC threshold */
+			int loop_threshold;	/* scalable loop threshold */
 			int xor;			/* history xor address flag */
 			int *context;		/* LLBT context bits */
 			int *shiftregs;		/* level-1 history table */
@@ -166,6 +167,7 @@ struct bpred_dir_t {
 			unsigned char *use;	/* useful counter for TAGE tables */
 			unsigned char *iter_c;	/* current iter counter for LOOP tables */
 			unsigned char *iter_p;	/* past iter counter for LOOP tables */
+			unsigned char *dir_bit;	/* loop body direction (0 or 1) */
 			md_addr_t *tag;		/* tags TAGE tables */
 		} two;
 	} config;
@@ -351,6 +353,43 @@ struct bpred_t {
   counter_t reverse_retstack_pops;	/* number of times a value was popped */
   counter_t reverse_retstack_pushes;	/* number of times a value was pushed */
   counter_t reverse_ras_hits;		/* num correct return-address predictions */
+
+
+  /* detailed instrumentation counters */
+  counter_t ob_fwd_lookups, ob_fwd_hits, ob_fwd_chosen, ob_fwd_correct;
+  counter_t ob_rev_lookups, ob_rev_hits, ob_rev_chosen, ob_rev_correct;
+
+  counter_t fhb_fwd_lookups, fhb_rev_lookups;
+  counter_t fhb_fwd_valid_out, fhb_rev_valid_out;
+  counter_t fhb_fwd_pred_uses, fhb_rev_pred_uses;
+  counter_t fhb_fwd_update_uses, fhb_rev_update_uses;
+  counter_t fhb_fwd_writes, fhb_rev_writes;
+  counter_t fhb_fwd_ob_bypassed, fhb_rev_ob_bypassed;
+  counter_t fhb_fwd_oht_bypassed, fhb_rev_oht_bypassed;
+
+  counter_t oht_fwd_lookups, oht_fwd_hits, oht_fwd_chosen, oht_fwd_correct;
+  counter_t oht_rev_lookups, oht_rev_hits, oht_rev_chosen, oht_rev_correct;
+
+  counter_t frmt_fwd_lookups, frmt_fwd_hits, frmt_fwd_misses;
+  counter_t frmt_rev_lookups, frmt_rev_hits, frmt_rev_misses;
+
+  counter_t tage_fwd_lookups, tage_rev_lookups;
+  counter_t tage_fwd_tag_matches, tage_rev_tag_matches;
+
+  counter_t sc_fwd_lookups, sc_rev_lookups;
+  counter_t sc_fwd_inversions, sc_rev_inversions;
+  counter_t sc_fwd_threshold_checks, sc_rev_threshold_checks;
+  counter_t sc_fwd_threshold_pass, sc_rev_threshold_pass;
+  counter_t sc_fwd_updates, sc_rev_updates;
+
+  counter_t loop_fwd_lookups, loop_rev_lookups;
+  counter_t loop_fwd_hits, loop_rev_hits;
+  counter_t loop_fwd_chosen, loop_rev_chosen;
+
+  counter_t llbp_fwd_lookups, llbp_rev_lookups;
+  counter_t llbp_fwd_hits, llbp_rev_hits;
+  counter_t llbp_fwd_chosen, llbp_rev_chosen;
+
 };
 
 /* branch predictor update information */
@@ -366,6 +405,23 @@ struct bpred_update_t {
 	int sum;				/* SC tables sum */
   } fwd_dir;
   int fwd_tage_pred;		/*	For TSCL/LLBP, track what the tage pred was*/
+  int fwd_tage_match;
+  int fwd_loop_match;
+  int fwd_loop_pred;		/* synthesized loop direction (taken=1) when fwd_loop_match */
+  int fwd_llbt_match;
+  int fwd_invert;
+  int fwd_valid_outcome;
+  int fwd_have_valid_outcome;
+
+  struct {
+    unsigned int ob     : 1;
+    unsigned int fhb    : 1;
+    unsigned int oht    : 1;
+    unsigned int tage   : 1;
+    unsigned int sc     : 1;
+    unsigned int loop   : 1;
+    unsigned int llbp   : 1;
+  } fwd_src;
   
   /* Reversible Structs */
   char *rev_pdir1;		/* direction-1 predictor counter */
@@ -379,6 +435,23 @@ struct bpred_update_t {
 	int sum;			/* SC tables sum */
   } rev_dir;
   int rev_tage_pred;		/*	For TSCL/LLBP, track what the tage pred was*/
+  int rev_tage_match;
+  int rev_loop_match;
+  int rev_loop_pred;		/* synthesized loop direction (taken=1) when rev_loop_match */
+  int rev_llbt_match;
+  int rev_invert;
+  int rev_valid_outcome;
+  int rev_have_valid_outcome;
+
+  struct {
+    unsigned int ob     : 1;
+    unsigned int fhb    : 1;
+    unsigned int oht    : 1;
+    unsigned int tage   : 1;
+    unsigned int sc     : 1;
+    unsigned int loop   : 1;
+    unsigned int llbp   : 1;
+  } rev_src;
 };
 
 /* create a branch predictor */

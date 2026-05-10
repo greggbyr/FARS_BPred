@@ -1,0 +1,13 @@
+reading benchmark database ./bench.db
+Doing mgrid
+Installing mgrid
+ln -s /home/bvgch/FARS_BPred/simulator/bench/little/mgrid.ss run.mgrid
+Pre-run mgrid
+cp /home/bvgch/FARS_BPred/simulator/input/ref/mgrid.* .
+cp: cannot stat '/home/bvgch/FARS_BPred/simulator/input/ref/mgrid.*': No such file or directory
+Run mgrid
+/home/bvgch/FARS_BPred/simulator/ss3/sim-outorder -max:inst 10000000 -bpred mbp -bpred:mbp 1 131072 17 1 0 run.mgrid  < mgrid.in > mgrid.out
+sh: 1: cannot open mgrid.in: No such file
+****** program returns ERROR 512
+Post-run mgrid
+rm -f -r mgrid.*
