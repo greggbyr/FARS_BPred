@@ -358,6 +358,7 @@ extern unsigned int md_op2flags[];
 
 /* returns non-zero if instruction is a function return */
 #define MD_IS_RETURN(OP)		((OP) == RETN)
+#define MD_IS_RETURN_FIXED(OP, inst)	((OP) == RETN)
 
 /* returns non-zero if instruction is an indirect jump */
 #define MD_IS_INDIR(OP)							\
