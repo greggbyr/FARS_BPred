@@ -1,0 +1,72 @@
+Lane 1 started: Mon Aug  3 23:01:15 UTC 2026
+[run]  go_tscl_16KB  start=23:01:15
+[done] go_tscl_16KB  end=23:01:48  rc=0
+[run]  li_tscl_16KB  start=23:01:48
+[done] li_tscl_16KB  end=23:02:22  rc=0
+[run]  gcc_tscl_16KB_frmt  start=23:02:22
+[done] gcc_tscl_16KB_frmt  end=23:03:01  rc=0
+[run]  ijpeg_tscl_16KB_frmt  start=23:03:01
+[done] ijpeg_tscl_16KB_frmt  end=23:03:20  rc=0
+[run]  perl_tscl_16KB_frmt  start=23:03:20
+[done] perl_tscl_16KB_frmt  end=23:04:21  rc=0
+[run]  go_tscl_32KB  start=23:04:21
+[done] go_tscl_32KB  end=23:05:27  rc=0
+[run]  li_tscl_32KB  start=23:05:27
+[done] li_tscl_32KB  end=23:06:43  rc=0
+[run]  gcc_tscl_32KB_frmt  start=23:06:43
+[done] gcc_tscl_32KB_frmt  end=23:08:01  rc=0
+[run]  ijpeg_tscl_32KB_frmt  start=23:08:01
+[done] ijpeg_tscl_32KB_frmt  end=23:08:43  rc=0
+[run]  perl_tscl_32KB_frmt  start=23:08:43
+[done] perl_tscl_32KB_frmt  end=23:09:36  rc=0
+[run]  go_tscl_64KB  start=23:09:36
+[done] go_tscl_64KB  end=23:10:43  rc=0
+[run]  li_tscl_64KB  start=23:10:43
+[done] li_tscl_64KB  end=23:11:47  rc=0
+[run]  gcc_tscl_64KB_frmt  start=23:11:48
+[done] gcc_tscl_64KB_frmt  end=23:12:49  rc=0
+[run]  ijpeg_tscl_64KB_frmt  start=23:12:49
+[done] ijpeg_tscl_64KB_frmt  end=23:13:28  rc=0
+[run]  perl_tscl_64KB_frmt  start=23:13:28
+[done] perl_tscl_64KB_frmt  end=23:14:24  rc=0
+[run]  go_tscl_128KB  start=23:14:24
+[done] go_tscl_128KB  end=23:15:28  rc=0
+[run]  li_tscl_128KB  start=23:15:28
+[done] li_tscl_128KB  end=23:16:39  rc=0
+[run]  gcc_tscl_128KB_frmt  start=23:16:39
+[done] gcc_tscl_128KB_frmt  end=23:17:38  rc=0
+[run]  ijpeg_tscl_128KB_frmt  start=23:17:38
+[done] ijpeg_tscl_128KB_frmt  end=23:18:28  rc=0
+[run]  perl_tscl_128KB_frmt  start=23:18:28
+[done] perl_tscl_128KB_frmt  end=23:19:23  rc=0
+[run]  go_tscl_256KB  start=23:19:23
+[done] go_tscl_256KB  end=23:20:27  rc=0
+[run]  li_tscl_256KB  start=23:20:27
+[done] li_tscl_256KB  end=23:21:34  rc=0
+[run]  gcc_tscl_256KB_frmt  start=23:21:34
+[done] gcc_tscl_256KB_frmt  end=23:22:44  rc=0
+[run]  ijpeg_tscl_256KB_frmt  start=23:22:44
+[done] ijpeg_tscl_256KB_frmt  end=23:23:19  rc=0
+[run]  perl_tscl_256KB_frmt  start=23:23:19
+[done] perl_tscl_256KB_frmt  end=23:24:10  rc=0
+[run]  go_tscl_512KB  start=23:24:10
+[done] go_tscl_512KB  end=23:25:03  rc=0
+[run]  li_tscl_512KB  start=23:25:03
+[done] li_tscl_512KB  end=23:25:57  rc=0
+[run]  gcc_tscl_512KB_frmt  start=23:25:57
+[done] gcc_tscl_512KB_frmt  end=23:26:51  rc=0
+[run]  ijpeg_tscl_512KB_frmt  start=23:26:51
+[done] ijpeg_tscl_512KB_frmt  end=23:27:21  rc=0
+[run]  perl_tscl_512KB_frmt  start=23:27:21
+[done] perl_tscl_512KB_frmt  end=23:28:09  rc=0
+[run]  go_tscl_1MB  start=23:28:09
+[done] go_tscl_1MB  end=23:29:19  rc=0
+[run]  li_tscl_1MB  start=23:29:19
+[done] li_tscl_1MB  end=23:30:14  rc=0
+[run]  gcc_tscl_1MB_frmt  start=23:30:14
+[done] gcc_tscl_1MB_frmt  end=23:31:14  rc=0
+[run]  ijpeg_tscl_1MB_frmt  start=23:31:14
+[done] ijpeg_tscl_1MB_frmt  end=23:31:46  rc=0
+[run]  perl_tscl_1MB_frmt  start=23:31:46
+[done] perl_tscl_1MB_frmt  end=23:32:34  rc=0
+Lane 1 finished: Mon Aug  3 23:32:34 UTC 2026

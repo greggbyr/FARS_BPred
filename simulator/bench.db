@@ -86,7 +86,7 @@ $PRE_RUN {"m88ksim"}	= "$cp $input_dir/ctl.in m88ksim.in ; $cp $input_dir/*.big 
 $POST_RUN{"m88ksim"}	= "$rm m88ksim.* m88ksim.in *.big";
 $STDIN_FILE{"m88ksim"}  = "m88ksim.in";
 
-$BINARIES{"compress"}	= "$bench_dir/compress.$ext";
+$BINARIES{"compress"}	= "$bench_dir/compress95.$ext";
 $RUN_ARGS{"compress"}	= "< bigtest.in";
 $OUT_FILE{"compress"}	= "bigtest.out";
 $PRE_RUN {"compress"}	= "$cp $input_dir/bigtest.in .";

@@ -1,0 +1,5 @@
+*.o
+*.a
+__pycache__/
+simulator/ss3/sim-outorder
+simulator/ss3/sysprobe

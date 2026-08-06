@@ -136,10 +136,148 @@ bpred_compute_sc_threshold(unsigned int depth)
 static int
 bpred_compute_loop_threshold(unsigned int depth)
 {
-  if (depth <= 3)
-    return 2;
-  else
-    return 3;
+  /* LOOP confidence saturates at 7 (3-bit counter). A 2026-06 sweep across
+   * thresholds 3-7 at 128 KB found IPC and FWD dir rate monotonically improve
+   * with threshold. Default raised to the saturation value (7) so LOOP only
+   * commits on fully-confirmed iteration sequences; env override available. */
+  const char *env = getenv("BPRED_LOOP_THRESHOLD");
+  if (env && *env) {
+    int v = atoi(env);
+    if (v > 0 && v <= 7) return v;
+  }
+  return 7;
+}
+
+/* BPRED_REV_LOOP_SUPPRESS=1 suppresses the REV LOOP predictor's SELECTION
+ * only (its commits never override TAGE/SC); the loop table still trains
+ * identically.  Used for the REV LOOP inertness A/B under reversified
+ * replay: the reverse_dir_hits delta between suppress=0/1 arms is LOOP's
+ * real contribution. */
+static int
+bpred_rev_loop_suppress(void)
+{
+  static int cached = -1;
+  if (cached < 0) {
+    const char *env = getenv("BPRED_REV_LOOP_SUPPRESS");
+    cached = (env && atoi(env) != 0) ? 1 : 0;
+  }
+  return cached;
+}
+
+/* Component ablation knobs: BPRED_TSCL_NOSC=1 disables the SC inversion
+ * decision, BPRED_TSCL_NOLOOP=1 disables LOOP commit selection.  Both are
+ * SELECTION-ONLY (same semantics as BPRED_REV_LOOP_SUPPRESS): every table
+ * still trains identically; only the used prediction changes.  Applied to the
+ * FWD path and both REV paths.  Default unset = full TAGE-SC-L.
+ * Ablation arms: TAGE=(1,1)  TAGE+SC=(0,1)  full=(0,0).  Set BOTH vars in
+ * ALL arms with same-length values (env presence shifts the simulated
+ * stack).  See scripts/sweep_perstage.sh. */
+static int
+bpred_tscl_nosc(void)
+{
+  static int cached = -1;
+  if (cached < 0) {
+    const char *env = getenv("BPRED_TSCL_NOSC");
+    cached = (env && atoi(env) != 0) ? 1 : 0;
+  }
+  return cached;
+}
+
+static int
+bpred_tscl_noloop(void)
+{
+  static int cached = -1;
+  if (cached < 0) {
+    const char *env = getenv("BPRED_TSCL_NOLOOP");
+    cached = (env && atoi(env) != 0) ? 1 : 0;
+  }
+  return cached;
+}
+
+/* loop-probe: observation-only counters for the ijpeg fwd/rev LOOP asymmetry
+ * diagnosis.  Raw tag matches (before the confidence gate) and the highest
+ * confidence value ever seen on a tag match, with the REV side split by phase
+ * (0 = fwd pass / FHB lockstep, 1 = twin replay; reverse_flow_twin() sets the
+ * flag).  Never read by any prediction path; printed to stderr by
+ * reverse_flow_twin() when BPRED_REV_PROBE=1. */
+int bpred_probe_replay_phase = 0;
+counter_t bpred_probe_loop_fwd_tagm = 0;
+counter_t bpred_probe_loop_rev_lookups[2] = {0, 0};
+counter_t bpred_probe_loop_rev_tagm[2] = {0, 0};
+counter_t bpred_probe_loop_rev_hits[2] = {0, 0};
+int bpred_probe_loop_fwd_maxconf = 0;
+int bpred_probe_loop_rev_maxconf[2] = {0, 0};
+
+/* loop-watch (BPRED_LOOP_WATCH=0xADDR[,0xADDR...], up to 4): per-address
+ * autopsy of LOOP-table training, to pin down WHY confidence does or does not
+ * build.  The unmasked loop key is ((hist ^ (pc>>3)) & 31) | ((pc>>3) << 5),
+ * so key>>5 identifies the PC and (key ^ (pc>>3)) & 31 recovers the 5-bit
+ * history -- one branch owns up to 32 (slot,tag) pairs, one per history
+ * value.  For each watched PC x {fwd,rev table} x {phase} we count events,
+ * per-history-slot scatter, foreign-tag arrivals, allocation takeovers, and
+ * thefts of the watched PC's entries by other keys; every not-taken
+ * (exit-shaped) update prints an exit line with iter_c/iter_p/conf so the
+ * confidence trajectory is directly visible.  Observation-only. */
+#define LOOP_WATCH_MAX 4
+static int loop_watch_n = -1;		/* -1 = env not parsed yet */
+static md_addr_t loop_watch_addr[LOOP_WATCH_MAX];
+struct loop_watch_stats {
+	counter_t events, taken, foreign, allocs, stolen;
+	counter_t conf_inc, conf_reset;
+	counter_t hist_cnt[32];		/* events per history slot */
+};
+/* [table: 0=fwd 1=rev][watch idx][phase] */
+static struct loop_watch_stats loop_watch[2][LOOP_WATCH_MAX][2];
+static struct bpred_dir_t *loop_watch_fwd_dir = NULL, *loop_watch_rev_dir = NULL;
+
+static int loop_watch_init(void) {
+	if (loop_watch_n < 0) {
+		const char *env = getenv("BPRED_LOOP_WATCH");
+		loop_watch_n = 0;
+		while (env && *env && loop_watch_n < LOOP_WATCH_MAX) {
+			char *end;
+			unsigned long long v = strtoull(env, &end, 16);
+			if (end == env) break;
+			loop_watch_addr[loop_watch_n++] = (md_addr_t)v;
+			env = (*end == ',') ? end + 1 : end;
+		}
+	}
+	return loop_watch_n;
+}
+
+static int loop_watch_find(int unmasked_key) {
+	int i;
+	/* Fix #20 loop keys are PC-only: unmasked key == pc >> MD_BR_SHIFT */
+	for (i = 0; i < loop_watch_n; i++)
+		if ((md_addr_t)unmasked_key == (loop_watch_addr[i] >> MD_BR_SHIFT))
+			return i;
+	return -1;
+}
+
+void bpred_loop_watch_report(void) {
+	int t, w, p, h;
+	if (loop_watch_init() <= 0) return;
+	for (t = 0; t < 2; t++)
+		for (w = 0; w < loop_watch_n; w++)
+			for (p = 0; p < 2; p++) {
+				struct loop_watch_stats *s = &loop_watch[t][w][p];
+				int slots = 0, top_h = 0;
+				if (!s->events) continue;
+				for (h = 0; h < 32; h++) {
+					if (s->hist_cnt[h]) slots++;
+					if (s->hist_cnt[h] > s->hist_cnt[top_h]) top_h = h;
+				}
+				fprintf(stderr,
+					"loop-watch summary: table=%s pc=0x%08llx phase=%d ev=%lld tk=%lld foreign=%lld allocs=%lld stolen=%lld conf_inc=%lld conf_reset=%lld slots_used=%d top_slot=h%02d ev=%lld (%.1f%%)\n",
+					t ? "rev" : "fwd",
+					(unsigned long long)loop_watch_addr[w], p,
+					(long long)s->events, (long long)s->taken,
+					(long long)s->foreign, (long long)s->allocs,
+					(long long)s->stolen,
+					(long long)s->conf_inc, (long long)s->conf_reset,
+					slots, top_h, (long long)s->hist_cnt[top_h],
+					100.0 * s->hist_cnt[top_h] / s->events);
+			}
 }
 
 /* create a branch predictor */
@@ -408,9 +546,15 @@ bpred_create(enum bpred_class class,	/* type of predictor to create */
 		}
 
 		// Loop Tables
+		/* LOOP storage sized off the predictor budget (l2size), not the L1 shift-register
+		 * table. Prior code passed l1size here, which collapsed the LOOP table to 2 entries
+		 * in every TSCL run and reduced masked_loop_key to a 1-bit index. Scaling by >>6
+		 * gives 256 entries at a 16 KB budget, matching CBP4 2014 LOOP geometry while
+		 * preserving budget-scaling behavior for larger configs. */
 		pred->fwd_loop_dirpred.twolev =
-			bpred_dir_create(class, 1, l1size, shift_width, 1);
-			
+			bpred_dir_create(class, 1, (l2size >> 6), shift_width, 1);
+		loop_watch_fwd_dir = pred->fwd_loop_dirpred.twolev;	/* loop-watch, observation-only */
+
 		//Need OHT
 		pred->fwd_dirpred.oht =
 			bpred_oht_create(class, l2size);
@@ -445,8 +589,10 @@ bpred_create(enum bpred_class class,	/* type of predictor to create */
 			}
 			
 			// Loop Tables
-			pred->rev_loop_dirpred.twolev = 
-				bpred_dir_create(class, 1, l1size, shift_width, 1);
+			/* See fwd-side comment: LOOP storage scales with l2size, not l1size. */
+			pred->rev_loop_dirpred.twolev =
+				bpred_dir_create(class, 1, (l2size >> 6), shift_width, 1);
+			loop_watch_rev_dir = pred->rev_loop_dirpred.twolev;	/* loop-watch, observation-only */
 			
 			// Need OHT
 			pred->rev_dirpred.oht = 
@@ -583,6 +729,10 @@ bpred_frmt_create (enum bpred_class class,	/* type of predictor to create */
 		fatal("out of virtual memory");
 	
 	frmts->class = class;
+	/* FRMT map capped at ONE QUARTER of the configured budget (all classes):
+	 * a full-budget map costs more storage than the reverse-side structures
+	 * it replaces, defeating FRMT's purpose.  Masks stay power-of-two. */
+	budget >>= 2;
 	frmts->budget = budget;
 	
 	switch (class) {
@@ -1628,6 +1778,22 @@ int future_key_from_tage (struct bpred_t *pred,	/* branch pred inst*/
 }
 
 /* Used to calculate 2nd level table indexes/keys for 2lev, tsbp, and chbp*/
+/* Fix #20: LOOP tables are PC-indexed/PC-tagged, per Seznec's L-TAGE /
+ * TAGE-SC-L loop predictor.  They previously keyed through
+ * key_from_features(), which XORs the 5-bit global history into the low
+ * bits of the key AND tag, splitting one branch across up to 32 entries
+ * whose per-trip iteration counts jitter with surrounding-stream noise.
+ * Measured on ijpeg's hot 1023-iteration loop: the dominant entry's counted
+ * trips alternated 254/255, so the exact-match confidence rule never saw two
+ * equal consecutive trips and the forward LOOP predictor never committed
+ * (0 hits vs a 134k-commit-@99.7% per-PC oracle).  A loop predictor's state
+ * must be a pure function of the branch's own outcome sequence; PC-only
+ * keying restores that (and forward/reverse symmetry with it). */
+int loop_key_from_pc (md_addr_t baddr)		/* branch address */
+{
+	return (int)(baddr >> MD_BR_SHIFT);
+}
+
 int key_from_features (struct bpred_dir_t *pred_dir,	/* branch dir predictor inst */
 		 md_addr_t baddr)		/* branch address */
 {
@@ -2063,13 +2229,17 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 						
 						// Get loop tag and compare to current tag
 						pred->loop_fwd_lookups++;
-						int loop_key = key_from_features (pred->fwd_loop_dirpred.twolev, fbaddr); // Get unmasked key from GHR and PC
+						int loop_key = loop_key_from_pc (fbaddr); // Fix #20: PC-only key (Seznec)
 						int masked_loop_key = loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
 						
 						#if BPRED_TSCL_TRACE
 						bpred_tscl_trace("LOOKUP_FWD_LOOP addr=0x%08x key=%d idx=%d comptag=%d storedtag=%d ctr=%d thr=%d", (unsigned int)fbaddr, loop_key, masked_loop_key, loop_key, pred->fwd_loop_dirpred.twolev->config.two.tag[masked_loop_key], pred->fwd_loop_dirpred.twolev->config.two.l2table[masked_loop_key], pred->fwd_loop_dirpred.twolev->config.two.loop_threshold);
 						#endif
 						if (loop_key==pred->fwd_loop_dirpred.twolev->config.two.tag[masked_loop_key]) {
+							/* loop-probe: raw tag match + max confidence seen (observation-only) */
+							bpred_probe_loop_fwd_tagm++;
+							if (pred->fwd_loop_dirpred.twolev->config.two.l2table[masked_loop_key] > bpred_probe_loop_fwd_maxconf)
+								bpred_probe_loop_fwd_maxconf = pred->fwd_loop_dirpred.twolev->config.two.l2table[masked_loop_key];
 #if BPRED_TSCL_TRACE
 							bpred_tscl_trace("FWD_LOOP_MATCH addr=0x%08x key=%d idx=%d tag=%d ctr=%d thr=%d iter_c=%d iter_p=%d",
 								(unsigned int)fbaddr, loop_key, masked_loop_key,
@@ -2079,7 +2249,9 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 								pred->fwd_loop_dirpred.twolev->config.two.iter_c[masked_loop_key],
 								pred->fwd_loop_dirpred.twolev->config.two.iter_p[masked_loop_key]);
 #endif
-							loop = bpred_dir_lookup(pred, pred->fwd_loop_dirpred.twolev, fbaddr, 0, frmt);
+							/* Fix #20: point at the tag-checked entry directly; bpred_dir_lookup
+							   would re-derive a history-mixed index that no longer matches */
+							loop = (char *)&pred->fwd_loop_dirpred.twolev->config.two.l2table[masked_loop_key];
 
 							if (*loop >= pred->fwd_loop_dirpred.twolev->config.two.loop_threshold) {
 								loop_match = 1;
@@ -2096,7 +2268,7 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 						}
 					}
 					
-					if (loop_match) {
+					if (loop_match && !bpred_tscl_noloop()) {
 						pred->loop_fwd_chosen++;
 						dir_update_ptr->fwd_pdir1 = loop;
 					} else {
@@ -2116,7 +2288,7 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 							
 							// invert on overthreshold summation
 							pred->sc_fwd_threshold_checks++;
-							if (dir_update_ptr->fwd_dir.sum >= pred->fwd_sc_dirpred[pred->tage_depth-1].twolev->config.two.sc_threshold) {
+							if (!bpred_tscl_nosc() && dir_update_ptr->fwd_dir.sum >= pred->fwd_sc_dirpred[pred->tage_depth-1].twolev->config.two.sc_threshold) {
 								pred->sc_fwd_threshold_pass++;
 								pred->sc_fwd_inversions++;
 								dir_update_ptr->fwd_src.sc = TRUE;
@@ -2127,11 +2299,11 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 					
 					// Save TAGE prediction as a valid outcome could have been used.
 					if ((pred->class==BPredTSCL)||(pred->class==BPredLLBP)) {
-						dir_update_ptr->fwd_tage_pred = loop_match
+						dir_update_ptr->fwd_tage_pred = (loop_match && !bpred_tscl_noloop())
 							? dir_update_ptr->fwd_loop_pred
 							: (*(dir_update_ptr->fwd_pdir1) >= 2);
 						dir_update_ptr->fwd_tage_match = tage_match;
-						dir_update_ptr->fwd_loop_match = loop_match;
+						dir_update_ptr->fwd_loop_match = loop_match && !bpred_tscl_noloop();
 						dir_update_ptr->fwd_llbt_match = llbt_match;
 						dir_update_ptr->fwd_invert = invert;
 						dir_update_ptr->fwd_valid_outcome = fwd_valid_outcome;
@@ -2343,14 +2515,15 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 
 							// Get loop tag and compare to current tag
 							pred->loop_rev_lookups++;
-							int loop_key = key_from_features (pred->fwd_loop_dirpred.twolev, rbaddr); // Get unmasked key from GHR and PC
+							int loop_key = loop_key_from_pc (rbaddr); // Fix #20: PC-only key (Seznec)
 							int masked_loop_key = loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
 							
 							#if BPRED_TSCL_TRACE
 							bpred_tscl_trace("LOOKUP_FRMT_REV_LOOP addr=0x%08x key=%d idx=%d comptag=%d storedtag=%d ctr=%d thr=%d", (unsigned int)rbaddr, loop_key, masked_loop_key, loop_key, pred->fwd_loop_dirpred.twolev->config.two.tag[masked_loop_key], pred->fwd_loop_dirpred.twolev->config.two.l2table[masked_loop_key], pred->fwd_loop_dirpred.twolev->config.two.loop_threshold);
 							#endif
 							if (loop_key==pred->fwd_loop_dirpred.twolev->config.two.tag[masked_loop_key]) {
-								loop = bpred_dir_lookup(pred, pred->fwd_loop_dirpred.twolev, rbaddr, 1, frmt);
+								/* Fix #20: direct pointer at the tag-checked entry (see fwd side) */
+								loop = (char *)&pred->fwd_loop_dirpred.twolev->config.two.l2table[masked_loop_key];
 
 								if (*loop >= pred->fwd_loop_dirpred.twolev->config.two.loop_threshold) {
 									loop_match = 1;
@@ -2367,7 +2540,7 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 							}
 						}
 						
-						if (loop_match) {
+						if (loop_match && !bpred_tscl_noloop()) {
 							pred->loop_rev_chosen++;
 							dir_update_ptr->rev_pdir1 = loop;
 						} else {
@@ -2384,14 +2557,14 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 								dir_update_ptr->rev_dir.sum = dir_update_ptr->rev_dir.sum + (*(dir_update_ptr->rev_pdir1) >= 2);
 
 								// invert on overthreshold summation
-								if (dir_update_ptr->rev_dir.sum >= pred->fwd_sc_dirpred[pred->tage_depth-1].twolev->config.two.sc_threshold)
+								if (!bpred_tscl_nosc() && dir_update_ptr->rev_dir.sum >= pred->fwd_sc_dirpred[pred->tage_depth-1].twolev->config.two.sc_threshold)
 									rev_invert = TRUE;
 							}
 						}
 
 						// Save TAGE prediction as a valid outcome could have been used.
 						if ((pred->class==BPredTSCL)||(pred->class==BPredLLBP)) {
-							dir_update_ptr->fwd_tage_pred = loop_match
+							dir_update_ptr->fwd_tage_pred = (loop_match && !bpred_tscl_noloop())
 								? dir_update_ptr->rev_loop_pred
 								: (*(dir_update_ptr->rev_pdir1) >= 2);
 						}
@@ -2562,6 +2735,7 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 							}
 							
 							for (int i = pred->tage_depth-1; i >= 1; i--) {
+								pred->tage_rev_lookups++;	/* mirror of fwd counter; observation-only */
 								// Get tage and sc tags and compare to current tag
 								int tage_key = key_from_features (pred->rev_tage_dirpred[i].twolev, rbaddr); // Get unmasked key from GHR and PC
 								int masked_tage_key = tage_key & (pred->rev_tage_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
@@ -2573,11 +2747,13 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 								if (tage_key==pred->rev_tage_dirpred[i].twolev->config.two.tag[masked_tage_key]) {
 									tage = bpred_dir_lookup(pred, pred->rev_tage_dirpred[i].twolev, rbaddr, 1, frmt);
 									tage_match = pred->rev_tage_dirpred[i].twolev->config.two.shift_width;
+									pred->tage_rev_tag_matches++;	/* mirror of fwd counter; observation-only */
 									break;	// Break at first (highest) match
 								}
 							}
 							
 							for (int i = 1; i < pred->tage_depth; i++) {
+								pred->sc_rev_lookups++;	/* mirror of fwd counter; observation-only */
 								int sc_key = key_from_features (pred->rev_sc_dirpred[i].twolev, rbaddr); // Get unmasked key from GHR and PC
 								int masked_sc_key = sc_key & (pred->rev_sc_dirpred[i].twolev->config.two.l2size - 1); // mask key based on predictor table size
 
@@ -2591,18 +2767,25 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 							
 							// Get loop tag and compare to current tag
 							pred->loop_rev_lookups++;
-							int loop_key = key_from_features (pred->rev_loop_dirpred.twolev, rbaddr); // Get unmasked key from GHR and PC
+							bpred_probe_loop_rev_lookups[bpred_probe_replay_phase]++;	/* loop-probe, observation-only */
+							int loop_key = loop_key_from_pc (rbaddr); // Fix #20: PC-only key (Seznec)
 							int masked_loop_key = loop_key & (pred->rev_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
 
 							#if BPRED_TSCL_TRACE
 							bpred_tscl_trace("LOOKUP_REV_LOOP addr=0x%08x key=%d idx=%d comptag=%d storedtag=%d ctr=%d thr=%d", (unsigned int)rbaddr, loop_key, masked_loop_key, loop_key, pred->rev_loop_dirpred.twolev->config.two.tag[masked_loop_key], pred->rev_loop_dirpred.twolev->config.two.l2table[masked_loop_key], pred->rev_loop_dirpred.twolev->config.two.loop_threshold);
 							#endif
 							if (loop_key==pred->rev_loop_dirpred.twolev->config.two.tag[masked_loop_key]) {
-								loop = bpred_dir_lookup(pred, pred->rev_loop_dirpred.twolev, rbaddr, 1, frmt);
+								/* loop-probe: raw tag match + max confidence seen (observation-only) */
+								bpred_probe_loop_rev_tagm[bpred_probe_replay_phase]++;
+								if (pred->rev_loop_dirpred.twolev->config.two.l2table[masked_loop_key] > bpred_probe_loop_rev_maxconf[bpred_probe_replay_phase])
+									bpred_probe_loop_rev_maxconf[bpred_probe_replay_phase] = pred->rev_loop_dirpred.twolev->config.two.l2table[masked_loop_key];
+								/* Fix #20: direct pointer at the tag-checked entry (see fwd side) */
+								loop = (char *)&pred->rev_loop_dirpred.twolev->config.two.l2table[masked_loop_key];
 
 								if (*loop >= pred->rev_loop_dirpred.twolev->config.two.loop_threshold) {
 									loop_match = 1;
 									pred->loop_rev_hits++;
+									bpred_probe_loop_rev_hits[bpred_probe_replay_phase]++;	/* loop-probe, observation-only */
 									dir_update_ptr->rev_src.loop = TRUE;
 									/* In body: predict dir_bit. At exit: predict !dir_bit. */
 									{
@@ -2615,7 +2798,15 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 							}
 						}
 						
-						if (loop_match) {
+						/* selection-only suppression for the inertness A/B:
+						   loop_use gates every point where the LOOP commit
+						   influences the used prediction; training paths
+						   (bpred_loop_update) key off loop_match-independent
+						   state and are unaffected */
+						{
+						int loop_use = loop_match && !bpred_rev_loop_suppress() && !bpred_tscl_noloop();
+
+						if (loop_use) {
 							pred->loop_rev_chosen++;
 							dir_update_ptr->rev_pdir1 = loop;
 						} else {
@@ -2626,28 +2817,31 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 							} else {
 								dir_update_ptr->rev_pdir1 = bimod;
 							}
-							
+
 							// Check for statistical correction
 							if ((pred->class==BPredTSCL)||(pred->class==BPredLLBP)) {
 								dir_update_ptr->rev_dir.sum = dir_update_ptr->rev_dir.sum + (*(dir_update_ptr->rev_pdir1) >= 2);
 
 								// invert on overthreshold summation
-								if (dir_update_ptr->rev_dir.sum >= pred->rev_sc_dirpred[pred->tage_depth-1].twolev->config.two.sc_threshold)
+								if (!bpred_tscl_nosc() && dir_update_ptr->rev_dir.sum >= pred->rev_sc_dirpred[pred->tage_depth-1].twolev->config.two.sc_threshold) {
+									pred->sc_rev_inversions++;	/* mirror of fwd counter; observation-only */
 									rev_invert = TRUE;
+								}
 							}
 						}
 
 						// Save TAGE prediction as a valid outcome could have been used.
 						if ((pred->class==BPredTSCL)||(pred->class==BPredLLBP)) {
 							dir_update_ptr->rev_tage_match = tage_match;
-						dir_update_ptr->rev_loop_match = loop_match;
+						dir_update_ptr->rev_loop_match = loop_use;
 						dir_update_ptr->rev_llbt_match = llbt_match;
 						dir_update_ptr->rev_invert = rev_invert;
 						dir_update_ptr->rev_valid_outcome = rev_valid_outcome;
 						dir_update_ptr->rev_have_valid_outcome = have_rev_valid_outcome;
-						dir_update_ptr->rev_tage_pred = loop_match
+						dir_update_ptr->rev_tage_pred = loop_use
 							? dir_update_ptr->rev_loop_pred
 							: (*(dir_update_ptr->rev_pdir1) >= 2);
+						}
 						}
 					}
 				}
@@ -3010,32 +3204,66 @@ void bpred_loop_update(struct bpred_dir_t *pred_dir,	/* branch dir predictor ins
 	int unmasked_loop_key,
 	int taken)
 {
-	if (unmasked_loop_key==pred_dir->config.two.tag[loop_key]) {
-		if (taken) {	// Branch was taken
-			pred_dir->config.two.iter_c[loop_key]++;
-		} else {	// Branch was not taken so moving iteration counter to past
-			pred_dir->config.two.iter_p[loop_key] = pred_dir->config.two.iter_c[loop_key];
-			pred_dir->config.two.iter_c[loop_key] = 0;
+	/* loop-watch pre-capture (observation-only; inert unless BPRED_LOOP_WATCH set) */
+	int lw_t = -1, lw_w = -1, lw_pre_c = 0, lw_pre_p = 0, lw_pre_conf = 0, lw_tagm = 0;
+	if (loop_watch_init() > 0) {
+		if (pred_dir == loop_watch_fwd_dir) lw_t = 0;
+		else if (pred_dir == loop_watch_rev_dir) lw_t = 1;
+		if (lw_t >= 0)
+			lw_w = loop_watch_find(unmasked_loop_key);
+		if (lw_t >= 0 && lw_w >= 0) {
+			struct loop_watch_stats *s = &loop_watch[lw_t][lw_w][bpred_probe_replay_phase];
+			int h = (unmasked_loop_key ^ (int)(loop_watch_addr[lw_w] >> MD_BR_SHIFT)) & 31;
+			lw_tagm = (unmasked_loop_key == pred_dir->config.two.tag[loop_key]);
+			lw_pre_c = pred_dir->config.two.iter_c[loop_key];
+			lw_pre_p = pred_dir->config.two.iter_p[loop_key];
+			lw_pre_conf = pred_dir->config.two.l2table[loop_key];
+			s->events++;
+			s->taken += !!taken;
+			s->hist_cnt[h]++;
+			if (!lw_tagm) s->foreign++;
+			if (lw_tagm && !taken) {
+				if (lw_pre_c == lw_pre_p && lw_pre_c > 0) s->conf_inc++;
+				else s->conf_reset++;
+			}
 		}
+	}
 
-		// hit the same number of past and current iterations; require iter_c > 0 so the
-		// degenerate iter_c==iter_p==0 startup case (sequence of not-taken branches on a fresh
-		// entry) does not falsely saturate confidence.
-		if (pred_dir->config.two.iter_c[loop_key]==pred_dir->config.two.iter_p[loop_key]
-				&& pred_dir->config.two.iter_c[loop_key] > 0) {
-			if (pred_dir->config.two.l2table[loop_key] < 3)
-				pred_dir->config.two.l2table[loop_key]++; // incr counter
-			// Refresh body direction. iter_c++ landed us on iter_p, so this taken value is the body direction.
+	if (unmasked_loop_key==pred_dir->config.two.tag[loop_key]) {
+		if (taken) {	// In loop body: count iterations, record body direction.
+			pred_dir->config.two.iter_c[loop_key]++;
 			pred_dir->config.two.dir_bit[loop_key] = !!taken;
+		} else {	// Loop exit: a full trip just completed (iter_c iterations).
+			/* Confidence tracks *verified* regularity, the way Seznec's L-TAGE /
+			 * TAGE-SC-L loop predictor does: gain confidence only when the trip
+			 * count just observed matches the stored one, and RESET to 0 when it
+			 * differs. The prior code never reset and incremented mid-body, so an
+			 * entry that once looked regular stayed saturated and kept committing
+			 * on irregular loops -- measured 30-47%% wrong commits, overriding a
+			 * far more accurate TAGE+SC. Resetting on mismatch restores the abstain
+			 * behaviour: an irregular loop drops below threshold and TAGE+SC take
+			 * over until regularity is re-established.
+			 * Require iter_c > 0 so the degenerate iter_c==iter_p==0 startup case
+			 * (a run of not-taken branches on a fresh entry) does not falsely
+			 * saturate confidence. */
+			if (pred_dir->config.two.iter_c[loop_key]==pred_dir->config.two.iter_p[loop_key]
+					&& pred_dir->config.two.iter_c[loop_key] > 0) {
+				/* Confidence saturates at 7 (3-bit) so thresholds 4-7 are reachable. */
+				if (pred_dir->config.two.l2table[loop_key] < 7)
+					pred_dir->config.two.l2table[loop_key]++; // verified regular trip
+			} else {
+				pred_dir->config.two.l2table[loop_key] = 0; // trip count changed -> not regular
+			}
 #if BPRED_TSCL_TRACE
-			bpred_tscl_trace("LOOP_CONF_INC idx=%d iter_c=%d iter_p=%d taken=%d ctr=%d dir=%d",
+			bpred_tscl_trace("LOOP_EXIT idx=%d iter_c=%d iter_p=%d ctr=%d dir=%d",
 				loop_key,
 				pred_dir->config.two.iter_c[loop_key],
 				pred_dir->config.two.iter_p[loop_key],
-				taken,
 				pred_dir->config.two.l2table[loop_key],
 				pred_dir->config.two.dir_bit[loop_key]);
 #endif
+			pred_dir->config.two.iter_p[loop_key] = pred_dir->config.two.iter_c[loop_key]; // store observed trip count
+			pred_dir->config.two.iter_c[loop_key] = 0;
 		}
 
 		if (pred_dir->config.two.use[loop_key] < 3)
@@ -3046,6 +3274,14 @@ void bpred_loop_update(struct bpred_dir_t *pred_dir,	/* branch dir predictor ins
 	}
 
 	if (!pred_dir->config.two.use[loop_key]) {
+		/* loop-watch: count ownership changes involving watched PCs */
+		if (lw_t >= 0 && pred_dir->config.two.tag[loop_key] != unmasked_loop_key) {
+			int lw_victim = loop_watch_find(pred_dir->config.two.tag[loop_key]);
+			if (lw_victim >= 0)
+				loop_watch[lw_t][lw_victim][bpred_probe_replay_phase].stolen++;
+			if (lw_w >= 0)
+				loop_watch[lw_t][lw_w][bpred_probe_replay_phase].allocs++;
+		}
 		pred_dir->config.two.l2table[loop_key] = 0; //strongly unset counter
 		pred_dir->config.two.tag[loop_key] = unmasked_loop_key; //overwrite tag
 		pred_dir->config.two.iter_c[loop_key] = 0; //fresh iter state for new entry
@@ -3056,6 +3292,18 @@ void bpred_loop_update(struct bpred_dir_t *pred_dir,	/* branch dir predictor ins
 #endif
 		pred_dir->config.two.use[loop_key] = 0; //set strongly not useful
 	}
+
+	/* loop-watch: exit-shaped (not-taken) updates at a watched PC are rare
+	   (one per trip); print the confidence transition so the trajectory is
+	   directly visible */
+	if (lw_t >= 0 && lw_w >= 0 && !taken)
+		fprintf(stderr,
+			"loop-watch exit: table=%s phase=%d pc=0x%08llx hist=h%02d tagm=%d iter_c=%d iter_p=%d conf=%d->%d\n",
+			lw_t ? "rev" : "fwd", bpred_probe_replay_phase,
+			(unsigned long long)loop_watch_addr[lw_w],
+			(unmasked_loop_key ^ (int)(loop_watch_addr[lw_w] >> MD_BR_SHIFT)) & 31,
+			lw_tagm, lw_pre_c, lw_pre_p, lw_pre_conf,
+			pred_dir->config.two.l2table[loop_key]);
 }
 
 // Update SC counters based on correctness
@@ -4325,15 +4573,15 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 			rev_future_loop_key;
 		
 		// Get loop tags and compare to current tag
-		unmasked_fwd_loop_key = key_from_features (pred->fwd_loop_dirpred.twolev, fbaddr); // Get unmasked key from GHR and PC
-		unmasked_fwd_future_loop_key = key_from_features (pred->fwd_loop_dirpred.twolev, pred->fhb[0].addr_out); // Get unmasked future key from GHR and PC
-		
+		unmasked_fwd_loop_key = loop_key_from_pc (fbaddr); // Fix #20: PC-only key (Seznec)
+		unmasked_fwd_future_loop_key = loop_key_from_pc (pred->fhb[0].addr_out); // Fix #20: PC-only key (Seznec)
+
 		fwd_loop_key = unmasked_fwd_loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
 		fwd_future_loop_key = unmasked_fwd_future_loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
 
 		if (frmt) {
-			unmasked_rev_loop_key = key_from_features (pred->fwd_loop_dirpred.twolev, fbaddr); // Get unmasked key from GHR and PC
-			unmasked_rev_future_loop_key = key_from_features (pred->fwd_loop_dirpred.twolev, pred->fhb[0].addr_out); // Get unmasked future key from GHR and PC
+			unmasked_rev_loop_key = loop_key_from_pc (fbaddr); // Fix #20: PC-only key (Seznec)
+			unmasked_rev_future_loop_key = loop_key_from_pc (pred->fhb[0].addr_out); // Fix #20: PC-only key (Seznec)
 
 			//unmasked_rev_loop_key = unmasked_key_from_frmt(pred, unmasked_rev_loop_key); // FRMT was enabled so REV key needs to be exchanged for FWD key
 			//unmasked_rev_future_loop_key = unmasked_key_from_frmt(pred, unmasked_rev_future_loop_key); // FRMT was enabled so REV key needs to be exchanged for FWD key
@@ -4341,8 +4589,8 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 			rev_loop_key = unmasked_rev_loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
 			rev_future_loop_key = unmasked_rev_future_loop_key & (pred->fwd_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
 		} else {
-			unmasked_rev_loop_key = key_from_features (pred->rev_loop_dirpred.twolev, fbaddr); // Get unmasked key from GHR and PC
-			unmasked_rev_future_loop_key = key_from_features (pred->rev_loop_dirpred.twolev, pred->fhb[0].addr_out); // Get unmasked future key from GHR and PC
+			unmasked_rev_loop_key = loop_key_from_pc (fbaddr); // Fix #20: PC-only key (Seznec)
+			unmasked_rev_future_loop_key = loop_key_from_pc (pred->fhb[0].addr_out); // Fix #20: PC-only key (Seznec)
 
 			rev_loop_key = unmasked_rev_loop_key & (pred->rev_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size
 			rev_future_loop_key = unmasked_rev_future_loop_key & (pred->rev_loop_dirpred.twolev->config.two.l2size - 1); // mask key based on predictor table size

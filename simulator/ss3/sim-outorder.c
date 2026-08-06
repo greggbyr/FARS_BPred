@@ -4876,12 +4876,781 @@ struct outcome get_outcome (void) {
 	o.is_return = oh.b_outcomes[oh.length - 1].is_return;
 
 	oh.length--;
-	
+
 	return o;
+}
+
+/* ==========================================================================
+ * Trace reversification (pass/land), 2026-07-04 design.
+ *
+ * Every forward branch (baddr -> btarget) has a virtual reverse-pair
+ * instruction at btarget.  During forward execution a pair site sees two
+ * event categories:
+ *   pass = the PC flows sequentially through the site
+ *   land = a taken branch deposits the PC at the site
+ * In reverse execution these ARE the reverse outcomes: land = taken (target
+ * = the paired baddr), pass = not taken.  The forward branches themselves
+ * become come-froms in reverse and are dropped from the reverse stream, so
+ * reverse prediction rates cover active reverse decisions only.
+ *
+ * Pair sites are discovered from the trace alone (destinations of taken
+ * events) -- hardware-independent by construction.  Passes are reconstructed
+ * offline by interval scan: between consecutive trace events the PC provably
+ * ran sequentially from the previous destination to the next branch address.
+ *
+ * Env vars:
+ *   BPRED_REVERSIFY=1        replay the reversified twin trace in reverse_flow()
+ *   BPRED_REVERSIFY_CHECK=1  run the round-trip reconstruction self-check
+ * ========================================================================== */
+
+struct rev_outcome {
+	md_addr_t raddr;	/* reverse-branch (pair) address = fwd btarget */
+	md_addr_t rtarget;	/* reverse taken-target = paired fwd baddr (lands) */
+	int land;		/* 1 = land (reverse taken), 0 = pass */
+	enum md_opcode op;	/* op class inherited from the pair's owner branch */
+	md_addr_t rkey;		/* predictor-indexing key when BPRED_REV_KEY=baddr:
+				   = paired fwd baddr on lands (== rtarget), = the
+				   site's owner-branch baddr on passes.  Everything
+				   trains on baddr during the fwd pass, so keying the
+				   reverse replay on baddr (not raddr = fwd btarget)
+				   reuses that training.  Ignored in v1 (raddr) mode. */
+};
+
+struct rev_history {
+	int MAX_HIST_CNT;
+	int length;
+	struct rev_outcome *r_outcomes;
+};
+
+struct rev_history roh;
+
+/* sorted pair-site table: address + op of the owning (taken) branch, plus the
+   owner branch's baddr (used as the passes' indexing key under BPRED_REV_KEY) */
+struct rev_site {
+	md_addr_t addr;
+	enum md_opcode op;
+	md_addr_t owner_baddr;
+};
+
+static struct rev_site *rev_sites = NULL;
+static int rev_n_sites = 0;
+
+static int rev_site_cmp(const void *a, const void *b) {
+	const struct rev_site *x = (const struct rev_site *)a;
+	const struct rev_site *y = (const struct rev_site *)b;
+	if (x->addr != y->addr)
+		return (x->addr > y->addr) ? 1 : -1;
+	/* deterministic tie-break among owners: prefer conditional owners */
+	{
+		int xc = (MD_OP_FLAGS(x->op) & F_COND) ? 0 : 1;
+		int yc = (MD_OP_FLAGS(y->op) & F_COND) ? 0 : 1;
+		if (xc != yc) return xc - yc;
+	}
+	if (x->op != y->op) return (int)x->op - (int)y->op;
+	/* final tie-break on owner baddr: keeps the surviving (dedup-winning)
+	   owner deterministic when several fwd branches target the same site */
+	if (x->owner_baddr != y->owner_baddr)
+		return (x->owner_baddr > y->owner_baddr) ? 1 : -1;
+	return 0;
+}
+
+static int rev_addr_cmp_fn(const void *a, const void *b) {
+	md_addr_t x = *(const md_addr_t *)a;
+	md_addr_t y = *(const md_addr_t *)b;
+	return (x > y) ? 1 : (x < y) ? -1 : 0;
+}
+
+/* index of first pair site with addr >= a */
+static int rev_site_lb(md_addr_t a) {
+	int lo = 0, hi = rev_n_sites;
+	while (lo < hi) {
+		int mid = lo + (hi - lo) / 2;
+		if (rev_sites[mid].addr < a) lo = mid + 1; else hi = mid;
+	}
+	return lo;
+}
+
+static void roh_append(md_addr_t raddr, md_addr_t rtarget, int land, enum md_opcode op, md_addr_t rkey) {
+	if (roh.length == roh.MAX_HIST_CNT) {
+		roh.MAX_HIST_CNT *= 2;
+		roh.r_outcomes = realloc(roh.r_outcomes,
+					 roh.MAX_HIST_CNT * sizeof(struct rev_outcome));
+		if (!roh.r_outcomes)
+			fatal("reversify: out of memory growing twin trace");
+	}
+	roh.r_outcomes[roh.length].raddr = raddr;
+	roh.r_outcomes[roh.length].rtarget = rtarget;
+	roh.r_outcomes[roh.length].land = land;
+	roh.r_outcomes[roh.length].op = op;
+	roh.r_outcomes[roh.length].rkey = rkey;
+	roh.length++;
+}
+
+/* op class for a pass event: a pass proves the site is direction-variable in
+   reverse, so an unconditional owner is remapped to a conditional class */
+static enum md_opcode rev_pass_op(enum md_opcode owner_op) {
+	if (MD_OP_FLAGS(owner_op) & F_COND)
+		return owner_op;
+	return BEQ;
+}
+
+/* Build the twin reverse trace from oh.b_outcomes[].  Purely a function of
+   the recorded trace; no predictor state is consulted. */
+void build_reverse_trace (void) {
+	int n = oh.length;
+	int i, k;
+	struct rev_site *tmp;
+	md_addr_t lo = 0;
+	int have_lo = 0;
+	long long n_lands = 0, n_passes = 0, n_gap_anomalies = 0;
+
+	/* 1. pair-site set = destinations of taken events */
+	tmp = calloc(n ? n : 1, sizeof(struct rev_site));
+	if (!tmp)
+		fatal("reversify: out of memory collecting pair sites");
+	k = 0;
+	for (i = 0; i < n; i++) {
+		struct outcome *o = &oh.b_outcomes[i];
+		if (o->btarget != (o->baddr + sizeof(md_inst_t))) {
+			tmp[k].addr = o->btarget;
+			tmp[k].op = o->op;
+			tmp[k].owner_baddr = o->baddr;
+			k++;
+		}
+	}
+	qsort(tmp, k, sizeof(struct rev_site), rev_site_cmp);
+	rev_sites = tmp;
+	rev_n_sites = 0;
+	for (i = 0; i < k; i++) {
+		if (rev_n_sites == 0 || rev_sites[rev_n_sites - 1].addr != tmp[i].addr)
+			rev_sites[rev_n_sites++] = tmp[i];
+	}
+
+	/* 2. walk the trace; emit gap passes then the land, forward-temporal
+	      order.  lo = lowest address not yet accounted for by sequential
+	      flow; a land consumes its target address, a not-taken branch
+	      consumes only its own address. */
+	roh.MAX_HIST_CNT = 1024;
+	roh.length = 0;
+	roh.r_outcomes = calloc(roh.MAX_HIST_CNT, sizeof(struct rev_outcome));
+	if (!roh.r_outcomes)
+		fatal("reversify: out of memory allocating twin trace");
+
+	for (i = 0; i < n; i++) {
+		struct outcome *o = &oh.b_outcomes[i];
+		int tk = (o->btarget != (o->baddr + sizeof(md_inst_t)));
+
+		if (have_lo) {
+			if (lo <= o->baddr) {
+				int j = rev_site_lb(lo);
+				while (j < rev_n_sites && rev_sites[j].addr <= o->baddr) {
+					roh_append(rev_sites[j].addr, 0, 0,
+						   rev_pass_op(rev_sites[j].op),
+						   /* pass key = site's owner baddr */
+						   rev_sites[j].owner_baddr);
+					n_passes++;
+					j++;
+				}
+			}
+			else if (lo > o->baddr + sizeof(md_inst_t)) {
+				/* sequential flow cannot run backward: an
+				   unrecorded control transfer must have occurred
+				   (lo == baddr+8 is the legit landed-on-a-branch
+				   case and is excluded above) */
+				n_gap_anomalies++;
+			}
+		}
+		if (tk) {
+			/* land key = paired fwd baddr (== rtarget) */
+			roh_append(o->btarget, o->baddr, 1, o->op, o->baddr);
+			n_lands++;
+		}
+		lo = (tk ? o->btarget : o->baddr) + sizeof(md_inst_t);
+		have_lo = 1;
+	}
+
+	fprintf(stderr,
+		"reversify: fwd_events=%d pair_sites=%d lands=%lld passes=%lld rev_events=%d gap_anomalies=%lld\n",
+		n, rev_n_sites, n_lands, n_passes, roh.length, n_gap_anomalies);
+
+	/* Static per-site oracle over the cond-replayed stream (cond-owned lands
+	   + all passes): the ceiling for ANY per-address static predictor.  If
+	   the replay's cond hit rate is far below this, the reverse predictor is
+	   being mistrained; if it matches, the gap is intrinsic (history-based
+	   prediction is where the remaining accuracy must come from). */
+	{
+		long long *site_cl = calloc(rev_n_sites ? rev_n_sites : 1, sizeof(long long));
+		long long *site_ps = calloc(rev_n_sites ? rev_n_sites : 1, sizeof(long long));
+		long long oracle_hits = 0, cond_events = 0, cond_taken = 0;
+		if (!site_cl || !site_ps)
+			fatal("reversify: out of memory in oracle analysis");
+		for (i = 0; i < roh.length; i++) {
+			struct rev_outcome *e = &roh.r_outcomes[i];
+			int s = rev_site_lb(e->raddr);
+			if (e->land) {
+				if (MD_OP_FLAGS(e->op) & F_COND)
+					site_cl[s]++;
+			} else
+				site_ps[s]++;
+		}
+		for (i = 0; i < rev_n_sites; i++) {
+			oracle_hits += (site_cl[i] > site_ps[i]) ? site_cl[i] : site_ps[i];
+			cond_events += site_cl[i] + site_ps[i];
+			cond_taken += site_cl[i];
+		}
+		fprintf(stderr,
+			"reversify: cond_events=%lld taken_frac=%.4f static_oracle=%.4f\n",
+			cond_events,
+			cond_events ? (double)cond_taken / cond_events : 0.0,
+			cond_events ? (double)oracle_hits / cond_events : 0.0);
+		free(site_cl);
+		free(site_ps);
+	}
+}
+
+/* Round-trip self-check: reconstruct the forward trace from the twin trace
+   plus the static fwd-branch site set (all baddrs -- legitimately static
+   program knowledge in a paired reversible ISA), and compare with oh.
+   Head/tail not-taken events outside twin coverage are the only permitted
+   skips; any interior mismatch is a transform bug. */
+void verify_reversibility (void) {
+	int n = oh.length, m = roh.length;
+	int i, j, fn;
+	md_addr_t *fsites;
+	md_addr_t hi = 0;
+	int have_hi = 0;
+	struct recon_event {
+		md_addr_t baddr;
+		int taken;
+		md_addr_t btarget;
+	} *rec;
+	int nrec = 0, overflow = 0;
+
+	/* static fwd site set = sorted unique baddrs of oh */
+	fsites = calloc(n ? n : 1, sizeof(md_addr_t));
+	if (!fsites)
+		fatal("reversify: out of memory in self-check");
+	for (i = 0; i < n; i++)
+		fsites[i] = oh.b_outcomes[i].baddr;
+	qsort(fsites, n, sizeof(md_addr_t), rev_addr_cmp_fn);
+	fn = 0;
+	for (i = 0; i < n; i++) {
+		if (fn == 0 || fsites[fn - 1] != fsites[i])
+			fsites[fn++] = fsites[i];
+	}
+
+	rec = calloc(n ? n : 1, sizeof(struct recon_event));
+	if (!rec)
+		fatal("reversify: out of memory in self-check");
+
+	/* walk the twin trace in reverse-temporal order, mirroring the builder
+	   with descending sequential flow */
+	for (j = m - 1; j >= 0; j--) {
+		struct rev_outcome *e = &roh.r_outcomes[j];
+
+		if (have_hi && e->raddr <= hi) {
+			/* fwd sites in [e->raddr, hi], descending */
+			int lo_i = 0, hi_i = fn, p;
+			while (lo_i < hi_i) {	/* upper bound: first site > hi */
+				int mid = lo_i + (hi_i - lo_i) / 2;
+				if (fsites[mid] <= hi) lo_i = mid + 1; else hi_i = mid;
+			}
+			p = lo_i - 1;	/* last site <= hi */
+			while (p >= 0 && fsites[p] >= e->raddr) {
+				if (nrec < n) {
+					rec[nrec].baddr = fsites[p];
+					rec[nrec].taken = 0;
+					rec[nrec].btarget = 0;
+					nrec++;
+				} else
+					overflow++;
+				p--;
+			}
+		}
+		if (e->land) {
+			if (nrec < n) {
+				rec[nrec].baddr = e->rtarget;
+				rec[nrec].taken = 1;
+				rec[nrec].btarget = e->raddr;
+				nrec++;
+			} else
+				overflow++;
+			hi = e->rtarget - sizeof(md_inst_t);
+		} else {
+			hi = e->raddr - sizeof(md_inst_t);
+		}
+		have_hi = 1;
+	}
+
+	/* greedy alignment against oh reversed: unreconstructable events must
+	   be not-taken (any taken fwd event produces a land) */
+	{
+		int p = n - 1, k = 0;
+		long long matched = 0, skipped = 0, first_skip = -1;
+		int fail = 0;
+		long long fail_at = -1;
+
+		while (k < nrec && p >= 0) {
+			struct outcome *o = &oh.b_outcomes[p];
+			int tk = (o->btarget != (o->baddr + sizeof(md_inst_t)));
+			if (o->baddr == rec[k].baddr && tk == rec[k].taken &&
+			    (!tk || o->btarget == rec[k].btarget)) {
+				matched++;
+				p--;
+				k++;
+			} else if (!tk) {
+				skipped++;
+				if (first_skip < 0) first_skip = p;
+				p--;
+			} else {
+				fail = 1;
+				fail_at = p;
+				break;
+			}
+		}
+		/* leftover oh head events must all be not-taken */
+		while (!fail && p >= 0) {
+			struct outcome *o = &oh.b_outcomes[p];
+			if (o->btarget != (o->baddr + sizeof(md_inst_t))) {
+				fail = 1;
+				fail_at = p;
+				break;
+			}
+			skipped++;
+			p--;
+		}
+		if (!fail && k < nrec) {
+			fail = 1;	/* reconstructed events left unmatched */
+			fail_at = -2;
+		}
+
+		fprintf(stderr,
+			"reversify-check: %s  recon=%d matched=%lld skipped_nt=%lld overflow=%d first_skip_idx=%lld fail_at=%lld\n",
+			fail ? "FAIL" : "PASS", nrec, matched, skipped, overflow,
+			first_skip, fail_at);
+	}
+
+	free(fsites);
+	free(rec);
+}
+
+/* bpred_dir_lookup is global in bpred.c but not declared in bpred.h; without
+   this prototype the compiler assumes an int return and truncates the 64-bit
+   counter pointer, so the bimod probe below dereferences garbage and segfaults. */
+extern char *bpred_dir_lookup(struct bpred_t *pred, struct bpred_dir_t *pred_dir,
+			      md_addr_t baddr, int flow_mode, int frmt);
+
+/* loop-probe globals in bpred.c (observation-only; see the fwd/rev asymmetry
+   diagnosis).  REV counters are [phase]: 0 = fwd pass, 1 = twin replay. */
+extern int bpred_probe_replay_phase;
+extern counter_t bpred_probe_loop_fwd_tagm;
+extern counter_t bpred_probe_loop_rev_lookups[2];
+extern counter_t bpred_probe_loop_rev_tagm[2];
+extern counter_t bpred_probe_loop_rev_hits[2];
+extern int bpred_probe_loop_fwd_maxconf;
+extern int bpred_probe_loop_rev_maxconf[2];
+extern void bpred_loop_watch_report(void);	/* BPRED_LOOP_WATCH summaries */
+
+/* ==========================================================================
+ * loop-probe (BPRED_REV_PROBE=1): offline diagnosis of the fwd/rev LOOP
+ * detection asymmetry.  Runs a per-site "oracle LOOP" automaton -- the exact
+ * bpred_loop_update state machine (8-bit iter counters that wrap at 256,
+ * Fix-#19 confidence: +1 on a matching completed trip, reset on mismatch,
+ * commit at conf>=7) -- with a dedicated entry per site: no tagging, no
+ * aliasing, no eviction, no history-mixed keys.  This is the ceiling for what
+ * a LOOP predictor could detect at each site.  Applied to the forward trace
+ * (per baddr, temporal order) and to the twin trace (per pair site, replay
+ * order), it answers: (a) is anything loop-shaped forward, (b) what shape do
+ * the reverse LOOP's targets actually have.  Pure read-only analysis of
+ * oh/roh; predictor state is never touched.
+ * ========================================================================== */
+
+struct loop_probe_site {
+	md_addr_t addr;
+	md_addr_t owner;		/* rev: owner baddr; fwd: unused (0) */
+	long long events, taken;	/* cond events at site, taken among them */
+	long long trips;		/* completed trips (exit events seen) */
+	unsigned char iter_c, iter_p;	/* 8-bit, wraps exactly like the table */
+	int conf;			/* 0..7 */
+	int dir_bit;
+	long long commits, chits;	/* conf>=7 lookups, and correct ones */
+	unsigned char last_len;		/* last completed trip length (mod 256) */
+	int streak, best_streak;	/* consecutive equal trip lengths */
+	unsigned char best_len;
+};
+
+/* one oracle step: predict (if confident) then update, mirroring
+   bpred_loop_update's tag-match path exactly */
+static void loop_probe_step(struct loop_probe_site *s, int taken) {
+	if (s->conf >= 7) {
+		int pt = (s->iter_c < s->iter_p) ? s->dir_bit : !s->dir_bit;
+		s->commits++;
+		if (pt == taken) s->chits++;
+	}
+	if (s->events == 0)
+		s->dir_bit = !!taken;	/* allocation: initial body-direction guess */
+	s->events++;
+	s->taken += !!taken;
+	if (taken) {
+		s->iter_c++;		/* unsigned char: wraps at 256 like the table */
+		s->dir_bit = 1;
+	} else {
+		if (s->iter_c == s->iter_p && s->iter_c > 0) {
+			if (s->conf < 7) s->conf++;
+		} else
+			s->conf = 0;
+		s->trips++;
+		if (s->trips > 1 && s->iter_c == s->last_len) s->streak++;
+		else s->streak = 1;
+		if (s->streak > s->best_streak) {
+			s->best_streak = s->streak;
+			s->best_len = s->iter_c;
+		}
+		s->last_len = s->iter_c;
+		s->iter_p = s->iter_c;
+		s->iter_c = 0;
+	}
+}
+
+static int loop_probe_rank_cmp(const void *a, const void *b) {
+	const struct loop_probe_site *x = *(const struct loop_probe_site * const *)a;
+	const struct loop_probe_site *y = *(const struct loop_probe_site * const *)b;
+	if (x->commits != y->commits) return (y->commits > x->commits) ? 1 : -1;
+	if (x->trips != y->trips) return (y->trips > x->trips) ? 1 : -1;
+	if (x->addr != y->addr) return (x->addr > y->addr) ? 1 : -1;
+	return 0;
+}
+
+static void loop_probe_report(const char *tag, struct loop_probe_site *sites, int n) {
+	long long ev = 0, tk = 0, trips = 0, commits = 0, chits = 0;
+	int i, used = 0, with_trip = 0, committable = 0;
+	struct loop_probe_site **rank;
+
+	for (i = 0; i < n; i++) {
+		if (!sites[i].events) continue;
+		used++;
+		ev += sites[i].events; tk += sites[i].taken;
+		trips += sites[i].trips;
+		commits += sites[i].commits; chits += sites[i].chits;
+		if (sites[i].trips) with_trip++;
+		if (sites[i].commits) committable++;
+	}
+	fprintf(stderr,
+		"loop-shape %s: cond_events=%lld taken_frac=%.4f sites=%d exit_events=%lld sites_with_exit=%d committable_sites=%d oracle_commits=%lld oracle_hit=%.4f\n",
+		tag, ev, ev ? (double)tk / ev : 0.0, used, trips, with_trip,
+		committable, commits, commits ? (double)chits / commits : 0.0);
+
+	rank = calloc(n ? n : 1, sizeof(*rank));
+	if (!rank) fatal("loop-probe: out of memory ranking sites");
+	for (i = 0; i < n; i++) rank[i] = &sites[i];
+	qsort(rank, n, sizeof(*rank), loop_probe_rank_cmp);
+	for (i = 0; i < n && i < 12; i++) {
+		struct loop_probe_site *s = rank[i];
+		if (!s->events || (!s->commits && !s->trips)) break;
+		fprintf(stderr,
+			"loop-shape %s site: addr=0x%08llx owner=0x%08llx dir=%s ev=%lld tk=%.4f trips=%lld best_len=%u best_streak=%d commits=%lld hit=%.4f\n",
+			tag, (unsigned long long)s->addr, (unsigned long long)s->owner,
+			s->owner ? (s->addr < s->owner ? "back" : "fwd") : "-",
+			s->events, s->events ? (double)s->taken / s->events : 0.0,
+			s->trips, s->best_len, s->best_streak,
+			s->commits, s->commits ? (double)s->chits / s->commits : 0.0);
+	}
+	free(rank);
+}
+
+static int loop_probe_addr_find(md_addr_t *arr, int n, md_addr_t a) {
+	int lo = 0, hi = n;
+	while (lo < hi) {
+		int mid = lo + (hi - lo) / 2;
+		if (arr[mid] < a) lo = mid + 1; else hi = mid;
+	}
+	return lo;
+}
+
+static void probe_trace_shapes(void) {
+	int i, j, nf = 0;
+	md_addr_t *faddrs;
+	struct loop_probe_site *fsit, *rsit;
+
+	/* ---- forward: per-baddr oracle over the recorded cond stream ---- */
+	faddrs = calloc(oh.length ? oh.length : 1, sizeof(md_addr_t));
+	if (!faddrs) fatal("loop-probe: out of memory collecting fwd sites");
+	for (i = 0; i < oh.length; i++) {
+		struct outcome *o = &oh.b_outcomes[i];
+		if (MD_OP_FLAGS(o->op) & F_COND)
+			faddrs[nf++] = o->baddr;
+	}
+	qsort(faddrs, nf, sizeof(md_addr_t), rev_addr_cmp_fn);
+	{
+		int k = 0;
+		for (i = 0; i < nf; i++)
+			if (k == 0 || faddrs[k - 1] != faddrs[i])
+				faddrs[k++] = faddrs[i];
+		nf = k;
+	}
+	fsit = calloc(nf ? nf : 1, sizeof(struct loop_probe_site));
+	if (!fsit) fatal("loop-probe: out of memory for fwd sites");
+	for (i = 0; i < nf; i++) fsit[i].addr = faddrs[i];
+	for (i = 0; i < oh.length; i++) {
+		struct outcome *o = &oh.b_outcomes[i];
+		if (!(MD_OP_FLAGS(o->op) & F_COND)) continue;
+		j = loop_probe_addr_find(faddrs, nf, o->baddr);
+		loop_probe_step(&fsit[j],
+				o->btarget != (o->baddr + sizeof(md_inst_t)));
+	}
+	loop_probe_report("fwd", fsit, nf);
+	free(faddrs);
+	free(fsit);
+
+	/* ---- reverse: per-pair-site oracle over the twin trace in replay
+	        (LIFO) order -- exactly the event sequence the REV LOOP sees ---- */
+	rsit = calloc(rev_n_sites ? rev_n_sites : 1, sizeof(struct loop_probe_site));
+	if (!rsit) fatal("loop-probe: out of memory for rev sites");
+	for (i = 0; i < rev_n_sites; i++) {
+		rsit[i].addr = rev_sites[i].addr;
+		rsit[i].owner = rev_sites[i].owner_baddr;
+	}
+	for (j = roh.length - 1; j >= 0; j--) {
+		struct rev_outcome *e = &roh.r_outcomes[j];
+		if (!(MD_OP_FLAGS(e->op) & F_COND)) continue;
+		loop_probe_step(&rsit[rev_site_lb(e->raddr)], e->land);
+	}
+	loop_probe_report("rev", rsit, rev_n_sites);
+	free(rsit);
+}
+
+/* Replay the reversified twin trace: the reverse-branch (pair) events are
+   the active reverse decisions; forward branches are come-froms and are not
+   replayed, so reverse stats cover active reverse decisions only. */
+void reverse_flow_twin (void) {
+	int j;
+	int frmt = 0;
+	struct bpred_update_t dir_update;
+	int stack_idx = 0;
+
+	/* BPRED_REV_KEY=baddr: index the reverse replay on the paired fwd baddr
+	   (e->rkey) instead of the pair-site address (e->raddr = fwd btarget).
+	   Everything trains on baddr during the fwd pass, so this reuses that
+	   training.  Default (unset/other) keeps v1 raddr keying bit-reproducible. */
+	const char *env_k = getenv("BPRED_REV_KEY");
+	int key_baddr = (env_k && strcmp(env_k, "baddr") == 0);
+
+	/* loop-probe (BPRED_REV_PROBE=1): per-site attribution of replay-time
+	   LOOP commits + phase-split counter report + offline trace-shape
+	   oracle.  Observation-only; off by default so canonical runs are
+	   untouched. */
+	const char *env_p = getenv("BPRED_REV_PROBE");
+	int probe = (env_p && atoi(env_p) != 0);
+	long long *site_commits = NULL, *site_chits = NULL;
+	bpred_probe_replay_phase = 1;	/* fwd pass over; split REV counters */
+
+	if (probe) {
+		site_commits = calloc(rev_n_sites ? rev_n_sites : 1, sizeof(long long));
+		site_chits = calloc(rev_n_sites ? rev_n_sites : 1, sizeof(long long));
+		if (!site_commits || !site_chits)
+			fatal("loop-probe: out of memory for site attribution");
+	}
+
+	if (twolev_config[4] || bimod_config[1])
+		frmt = 1;
+
+	/* replay instrumentation: event-type / owner-class / provider breakdown
+	   of direction accuracy, to diagnose the twin-stream dir rate */
+	long long c_land_cond = 0, c_land_cond_hit = 0, c_land_cond_pt = 0;
+	long long c_land_unc = 0, c_land_unc_hit = 0, c_land_unc_pt = 0;
+	long long c_pass = 0, c_pass_hit = 0, c_pass_pt = 0;
+	long long c_loop = 0, c_loop_hit = 0;
+	long long c_tage = 0, c_tage_hit = 0;
+	long long c_base = 0, c_base_hit = 0;
+	long long c_invert = 0;
+	/* convergence probes: cond hit rate by replay half, and whether the REV
+	   bimod counter actually moves toward the outcome across bpred_update */
+	long long c_cond_h1 = 0, c_cond_h1_hit = 0;
+	long long c_cond_h2 = 0, c_cond_h2_hit = 0;
+	long long c_probe = 0, c_probe_landed = 0;
+
+	for (j = roh.length - 1; j >= 0; j--) {
+		struct rev_outcome *e = &roh.r_outcomes[j];
+		/* branch-address key for predictor indexing: paired fwd baddr
+		   (rkey) under BPRED_REV_KEY=baddr, else the pair-site (raddr) */
+		md_addr_t bpc = key_baddr ? e->rkey : e->raddr;
+		md_addr_t bft = bpc + sizeof(md_inst_t);	/* fall-through of the key */
+		/* ascending fall-through convention kept for consistency with
+		   the predictor internals; direction stats are unaffected */
+		md_addr_t actual = e->land ? e->rtarget : bft;
+		md_addr_t prd;
+		int predtaken, dirhit, is_cond;
+
+		memset(&dir_update, 0, sizeof(dir_update));
+
+		prd = bpred_lookup(pred,
+				/* branch address */bpc,
+				/* target address */e->land ? e->rtarget : 0,
+				/* opcode */e->op,
+				/* call? v1: pairs are plain branches */0,
+				/* return? v1: pairs are plain branches */0,
+				/* updt */&dir_update,
+				/* RSB index */&stack_idx,
+				/* REV mode */1,
+				/* FRMTs */frmt);
+		if (!prd)
+			prd = bft;
+
+		predtaken = (prd != bft);
+		dirhit = (predtaken == e->land);
+		is_cond = ((MD_OP_FLAGS(e->op) & F_COND) != 0);
+
+		if (e->land) {
+			if (is_cond) {
+				c_land_cond++; c_land_cond_hit += dirhit;
+				c_land_cond_pt += predtaken;
+			} else {
+				c_land_unc++; c_land_unc_hit += dirhit;
+				c_land_unc_pt += predtaken;
+			}
+		} else {
+			c_pass++; c_pass_hit += dirhit; c_pass_pt += predtaken;
+		}
+		if (is_cond) {
+			if (dir_update.rev_loop_match) {
+				c_loop++; c_loop_hit += dirhit;
+				if (probe) {
+					int s = rev_site_lb(e->raddr);
+					site_commits[s]++;
+					site_chits[s] += dirhit;
+				}
+			} else if (dir_update.rev_tage_match) {
+				c_tage++; c_tage_hit += dirhit;
+			} else {
+				c_base++; c_base_hit += dirhit;
+			}
+			c_invert += (dir_update.rev_invert != 0);
+			if (j < roh.length / 2) {
+				c_cond_h2++; c_cond_h2_hit += dirhit;
+			} else {
+				c_cond_h1++; c_cond_h1_hit += dirhit;
+			}
+		}
+
+		/* bimod response probe (cond events, no-FRMT only) */
+		{
+			char *bp = (is_cond && !frmt)
+				? bpred_dir_lookup(pred, pred->rev_dirpred.bimod,
+						   bpc, 1, frmt)
+				: NULL;
+			int ctr_before = bp ? *bp : -1;
+
+		bpred_update(pred,
+			/* branch address */bpc,
+			/* target address */actual,
+			/* taken? */e->land,
+			/* pred taken? */predtaken,
+			/* correct pred? */prd == actual,
+			/* opcode */e->op,
+			/* dir predictor update pointer */&dir_update,
+			/* REV mode */1,
+			/* FRMTs */frmt);
+
+			if (bp) {
+				int ctr_after = *bp;
+				c_probe++;
+				/* update landed iff counter moved toward the outcome
+				   (or was already saturated in that direction) */
+				if (e->land)
+					c_probe_landed += (ctr_after > ctr_before || ctr_before == 3);
+				else
+					c_probe_landed += (ctr_after < ctr_before || ctr_before == 0);
+			}
+		}
+	}
+
+#define REV_RATE(h, c) ((c) ? (double)(h) / (double)(c) : 0.0)
+	fprintf(stderr,
+		"reversify-replay: land_cond=%lld hit=%.4f ptk=%.4f | land_unc=%lld hit=%.4f ptk=%.4f | pass=%lld hit=%.4f ptk=%.4f\n",
+		c_land_cond, REV_RATE(c_land_cond_hit, c_land_cond), REV_RATE(c_land_cond_pt, c_land_cond),
+		c_land_unc, REV_RATE(c_land_unc_hit, c_land_unc), REV_RATE(c_land_unc_pt, c_land_unc),
+		c_pass, REV_RATE(c_pass_hit, c_pass), REV_RATE(c_pass_pt, c_pass));
+	fprintf(stderr,
+		"reversify-replay: cond providers: loop=%lld hit=%.4f | tage=%lld hit=%.4f | base=%lld hit=%.4f | sc_inverts=%lld\n",
+		c_loop, REV_RATE(c_loop_hit, c_loop),
+		c_tage, REV_RATE(c_tage_hit, c_tage),
+		c_base, REV_RATE(c_base_hit, c_base), c_invert);
+	fprintf(stderr,
+		"reversify-replay: cond halves: h1=%lld hit=%.4f | h2=%lld hit=%.4f | bimod_probe=%lld landed=%.4f\n",
+		c_cond_h1, REV_RATE(c_cond_h1_hit, c_cond_h1),
+		c_cond_h2, REV_RATE(c_cond_h2_hit, c_cond_h2),
+		c_probe, REV_RATE(c_probe_landed, c_probe));
+
+	if (probe) {
+		int i, printed = 0, with_commits = 0;
+		fprintf(stderr,
+			"loop-probe: fwd lookups=%lld tagm=%lld hits=%lld maxconf=%d\n",
+			(long long)pred->loop_fwd_lookups,
+			(long long)bpred_probe_loop_fwd_tagm,
+			(long long)pred->loop_fwd_hits,
+			bpred_probe_loop_fwd_maxconf);
+		fprintf(stderr,
+			"loop-probe: rev train: lookups=%lld tagm=%lld hits=%lld maxconf=%d | replay: lookups=%lld tagm=%lld hits=%lld maxconf=%d\n",
+			(long long)bpred_probe_loop_rev_lookups[0],
+			(long long)bpred_probe_loop_rev_tagm[0],
+			(long long)bpred_probe_loop_rev_hits[0],
+			bpred_probe_loop_rev_maxconf[0],
+			(long long)bpred_probe_loop_rev_lookups[1],
+			(long long)bpred_probe_loop_rev_tagm[1],
+			(long long)bpred_probe_loop_rev_hits[1],
+			bpred_probe_loop_rev_maxconf[1]);
+
+		for (i = 0; i < rev_n_sites; i++)
+			with_commits += (site_commits[i] != 0);
+		fprintf(stderr,
+			"loop-probe: replay LOOP commits spread over %d of %d pair sites\n",
+			with_commits, rev_n_sites);
+		/* top commit sites: selection-print without sorting the live
+		   arrays -- 12 passes of max-find, marking printed sites */
+		for (printed = 0; printed < 12; printed++) {
+			int best = -1;
+			for (i = 0; i < rev_n_sites; i++)
+				if (site_commits[i] > 0 &&
+				    (best < 0 || site_commits[i] > site_commits[best]))
+					best = i;
+			if (best < 0) break;
+			fprintf(stderr,
+				"loop-probe: commit site: raddr=0x%08llx owner=0x%08llx dir=%s commits=%lld hit=%.4f\n",
+				(unsigned long long)rev_sites[best].addr,
+				(unsigned long long)rev_sites[best].owner_baddr,
+				rev_sites[best].addr < rev_sites[best].owner_baddr ? "back" : "fwd",
+				site_commits[best],
+				REV_RATE(site_chits[best], site_commits[best]));
+			site_commits[best] = -site_commits[best];	/* mark printed */
+		}
+		free(site_commits);
+		free(site_chits);
+
+		probe_trace_shapes();
+		bpred_loop_watch_report();
+	}
+#undef REV_RATE
 }
 
 /* Run reverse simulation of branch predictions */
 void reverse_flow (void) {
+	{
+		const char *env_r = getenv("BPRED_REVERSIFY");
+		const char *env_c = getenv("BPRED_REVERSIFY_CHECK");
+		int reversify = (env_r && atoi(env_r) != 0);
+		int do_check = (env_c && atoi(env_c) != 0);
+
+		if (reversify || do_check) {
+			build_reverse_trace();
+			if (do_check)
+				verify_reversibility();
+		}
+		if (reversify) {
+			reverse_flow_twin();
+			return;
+		}
+	}
+
 	md_addr_t fwd_baddr;			/* historic fwd branch address */
 	md_addr_t fwd_btarget;			/* historic branch target outcome */
 	md_addr_t fwd_rtarget;			/* real branch target assoc with baddr */
