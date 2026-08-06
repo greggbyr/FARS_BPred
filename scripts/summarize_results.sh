@@ -17,9 +17,8 @@
 # figure data to within ~1e-4 (the simulated program's stack layout absorbs
 # the host environment, which perturbs IPC in the fourth decimal).
 #
-# The means below cover the five benchmarks the paper's cross-benchmark
-# figures average over; compress cells (also swept) are reported per-workload
-# in the paper rather than folded into those means.
+# The means below cover all six benchmarks, matching the paper's
+# cross-benchmark figures.
 set -u
 cd "$(dirname "$0")/../simulator"
 
@@ -37,7 +36,7 @@ if [[ "$DIR" == *perstage* ]]; then
 else
     PREDS=(bimod gshare ob oht mbp tscl)
 fi
-BENCHES=(gcc go ijpeg li perl)
+BENCHES=(gcc go ijpeg li perl compress)
 SIZES=(16KB 32KB 64KB 128KB 256KB 512KB 1MB)
 
 get() { grep -m1 "$2" "$1" 2>/dev/null | awk '{print $2}'; }

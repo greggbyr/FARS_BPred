@@ -13,7 +13,8 @@ place of the twin structures.
 
 ## Requirements
 
-A Linux environment (native or WSL2) with `gcc`, `make`, and `perl`.
+A Linux environment (native or WSL2) with `gcc`, `make`, and `perl`
+(`python3` additionally for the optional CSV compilation script).
 The simulator is 32-bit-era C; the build flags in `scripts/build.sh` handle
 modern-compiler strictness, and `simulator/ss3/compat/` carries a `termio.h`
 shim for glibc versions that no longer ship one (applied automatically when
@@ -56,7 +57,14 @@ scripts/sweep_perstage.sh [lanes]   # 210 cells: TAGE-SC-L component ablation
 scripts/summarize_results.sh        # benchmark-mean IPC and direction rates
 scripts/summarize_results.sh frmt   # same for the FRMT cells
 scripts/summarize_results.sh [frmt] results_perstage   # ablation summary
+python3 scripts/compile_results.py  # flatten all cells into tidy CSVs
 ```
+
+`compile_results.py` writes one row per simulation cell to
+`simulator/compiled_results/main_sweep.csv` and `perstage_sweep.csv`
+(benchmark, predictor, budget, twin/FRMT mode, IPC, forward/reverse direction
+and address rates, and per-component activity). The repository ships with
+these CSVs pre-generated from the full result set.
 
 Sweep outputs are one text file per cell in `simulator/results/` (and
 `simulator/results_perstage/` for the ablation), named
