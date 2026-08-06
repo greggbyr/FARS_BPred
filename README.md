@@ -102,7 +102,8 @@ simulator/bench.db        benchmark command database for Run.pl
 simulator/bench/          SPEC95 little-endian benchmark binaries
 simulator/input/          benchmark inputs
 simulator/output/ref/     expected benchmark outputs (Run.pl validation)
-simulator/ss3/            SimpleScalar 3.0 source; predictors in bpred.c
+simulator/ss3/            SimpleScalar 3.0e source (toddmaustin/simplesim-3.0
+                          base, pre-configured for PISA); predictors in bpred.c
 simulator/results/        main sweep results (one .txt per cell)
 simulator/results_perstage/  component ablation results
 ```

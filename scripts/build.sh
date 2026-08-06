@@ -5,6 +5,9 @@
 # Output:  simulator/ss3/sim-outorder
 #
 # Notes:
+#  - ss3/ is SimpleScalar 3.0e (toddmaustin/simplesim-3.0) shipped already
+#    configured for the PISA target: do NOT run "make config-*", the
+#    machine.*/loader.c/symbol.c/syscall.c files are the PISA versions.
 #  - sysprobe must be built first: the Makefile uses it to derive endianness
 #    defines, and a stale/missing sysprobe silently drops them.
 #  - libexo's sources are shipped pre-generated; the touch sequence below
