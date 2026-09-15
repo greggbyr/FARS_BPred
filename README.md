@@ -89,6 +89,20 @@ Reproduction notes:
   cannot hold the SPEC workload programs (it needs a rebuild from source
   with a larger memory configuration).
 
+## Energy model for the inflection-point study
+
+```sh
+python3 scripts/inflection_model.py              # report to stdout
+python3 scripts/inflection_model.py --write=DIR  # also write the LaTeX
+```
+
+`inflection_model.py` derives the erasure decomposition and the device
+calibration for the companion inflection-point study from the same
+`simulator/results/` files as the branch-prediction sweeps. It needs Python 3
+and no other dependency. With `--write=DIR` it emits the plotted datasets and
+two generated tables into a manuscript directory; the manuscript sources are
+not part of this repository.
+
 ## Component ablation knobs
 
 Two environment variables gate TAGE-SC-L stages at prediction-selection time
